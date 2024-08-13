@@ -9,5 +9,12 @@ name = "stream-rust-test"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
+homepage = "https://astarte.cloud/"
+categories = ["embedded", "api-bindings"]
+keywords = ["rust", "iot", "astarte", "mqtt-client"]
+readme = "README.md"
+repository = "https://github.com/astarte-platform/stream-rust-test"
+rust-version = "1.72.0"
+description = "Astarte Rust SDK based data stream test."
 
 [dependencies]
