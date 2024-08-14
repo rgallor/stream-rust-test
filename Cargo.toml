@@ -18,3 +18,5 @@ rust-version = "1.72.0"
 description = "Astarte Rust SDK based data stream test."
 
 [dependencies]
+color-eyre = "0.6.3"
+tracing-subscriber = { version = "0.3.0", features = ["env-filter"]}
