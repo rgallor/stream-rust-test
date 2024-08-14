@@ -5,3 +5,5 @@
 /target
 
 .idea/
+
+.pre-commit-config.yaml
