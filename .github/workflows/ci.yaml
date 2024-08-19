@@ -21,3 +21,6 @@ concurrency:
 jobs:
   reuse:
     uses: ./.github/workflows/reuse-lint.yaml
+  check:
+    uses: ./.github/workflows/check.yaml
+    needs: [reuse]
