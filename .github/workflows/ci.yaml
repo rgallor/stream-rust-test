@@ -24,3 +24,7 @@ jobs:
   check:
     uses: ./.github/workflows/check.yaml
     needs: [reuse]
+  test:
+    uses: ./.github/workflows/test.yaml
+    secrets: inherit
+    needs: [reuse]
