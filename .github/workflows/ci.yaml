@@ -1,0 +1,40 @@
+# This file is part of Astarte.
+#
+# Copyright 2024 SECO Mind Srl
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: ci
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - master
+      - release-*
+permissions:
+  contents: read
+# Spend CI time only on latest ref
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
+jobs:
+  dco:
+    uses: ./.github/workflows/dco.yaml
+    permissions:
+      actions: read
+      pull-requests: read
+    with:
+      pr: ${{ github.event.pull_request.number }}
+  reuse:
+    uses: ./.github/workflows/reuse-lint.yaml
+  check:
+    uses: ./.github/workflows/check.yaml
+    needs: [reuse, dco]
+  test:
+    uses: ./.github/workflows/test.yaml
+    secrets: inherit
+    needs: [reuse, dco]

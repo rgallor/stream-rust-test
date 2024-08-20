@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Stream Rust Test
+Source: https://github.com/astarte-platform/stream-rust-test
+
+Files: Cargo.lock
+Copyright: 2024 SECO Mind Srl
+License: Apache-2.0

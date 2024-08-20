@@ -1,0 +1,88 @@
+# This file is part of Astarte.
+#
+# Copyright 2024 SECO Mind Srl
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: check
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  CARGO_TERM_COLOR: always
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    name: stable / fmt
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --check --all
+  clippy:
+    runs-on: ubuntu-latest
+    name: ${{ matrix.toolchain }} / clippy
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable, beta]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ${{ matrix.toolchain }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: clippy
+      - name: Install sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.4
+      - name: cargo clippy
+        run: cargo clippy --all-targets --all-features --workspace -- -D warnings
+  doc:
+    runs-on: ubuntu-latest
+    name: nightly / doc
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nightly
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Install sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.4
+      - name: cargo doc
+        run: cargo doc --no-deps --all-features --workspace
+        env:
+          RUSTDOCFLAGS: --cfg docsrs -D warnings
+  hack:
+    runs-on: ubuntu-latest
+    name: ubuntu / stable / features
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.4
+      - name: cargo install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+      - name: cargo hack
+        run: cargo hack --workspace --feature-powerset check
+  msrv:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        msrv: [1.72.0]
+    name: ubuntu / ${{ matrix.msrv }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ${{ matrix.msrv }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.msrv }}
+      - name: Install sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.4
+      - name: cargo +${{ matrix.msrv }} check
+        run: cargo check --all-features --workspace
