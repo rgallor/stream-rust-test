@@ -19,7 +19,7 @@ jobs:
   upload:
     runs-on: ubuntu-latest
     # Run only if originated from a PR
-    if: ${{ github.event.workflow_run.event == 'pull_request' }}
+    if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Download coverage artifact
         uses: actions/download-artifact@v4
