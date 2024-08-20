@@ -40,14 +40,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          path: source
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
         with:
           codecov_yml_path: master/.github/codecov.yaml
           token: ${{secrets.CODECOV_TOKEN}}
           fail_ci_if_error: true
-          root_dir: source
           override_branch: ${{ github.event.workflow_run.head_branch }}
           override_commit: ${{ github.event.workflow_run.head_sha }}
           override_pr: ${{ env.PR_NUMBER }}
