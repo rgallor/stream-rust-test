@@ -8,16 +8,63 @@ use astarte_device_sdk::builder::{DeviceBuilder, DeviceSdkBuild};
 use astarte_device_sdk::store::SqliteStore;
 use astarte_device_sdk::transport::mqtt::{Credential, MqttConfig};
 use astarte_device_sdk::{Client, DeviceClient, EventLoop};
+use clap::Parser;
 use color_eyre::eyre;
-use color_eyre::eyre::{bail, Context};
+use color_eyre::eyre::bail;
+use std::path::PathBuf;
 use std::time::SystemTime;
 use stream_rust_test::math::{BaseValue, MathFunction};
-use stream_rust_test::Config;
 use tokio::task::JoinSet;
 use tracing::{debug, error};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
+
+/// Astarte device configuration.
+#[derive(Debug, Clone, Parser)]
+#[clap(version, about)]
+pub struct Config {
+    /// Astarte realm
+    #[clap(long, env = "REALM")]
+    pub realm: String,
+    /// Device ID
+    #[clap(long, env = "DEVICE_ID")]
+    pub device_id: String,
+    /// Device credential secret
+    #[clap(long, env = "CREDENTIALS_SECRET")]
+    pub credentials_secret: Option<String>,
+    /// Device pairing token
+    #[clap(long, env = "PAIRING_TOKEN")]
+    pub pairing_token: Option<String>,
+    /// Astarte pairing url
+    #[clap(long, env = "PAIRING_URL")]
+    pub pairing_url: String,
+    /// Astarte store directory
+    #[clap(long, env = "STORE_DIR")]
+    pub store_dir: String,
+    /// Flag to ignore Astarte SSL errors
+    #[clap(long, default_value = "true", env = "IGNORE_SSL_ERRORS")]
+    pub ignore_ssl_errors: bool,
+    /// Path to folder containing the Astarte Device interfaces
+    #[clap(long, default_value = PathBuf::from("interfaces").into_os_string())]
+    pub interfaces_folder: PathBuf,
+    /// Math function the device will use to send data to Astarte
+    #[clap(long, default_value = "default", env = "MATH_FUNCTION")]
+    pub math_function: MathFunction,
+    /// Interface name to send data to
+    #[clap(
+        long,
+        default_value = "org.astarte-platform.genericsensors.Values",
+        env = "INTERFACE_NAME"
+    )]
+    pub interface_datastream_do: String,
+    /// Milliseconds the device must wait before sending data to Astarte
+    #[clap(long, default_value = "1000", env = "INTERVAL_BTW_SAMPLES")]
+    pub interval_btw_samples: u64,
+    /// Scale for the generation of the data to send
+    #[clap(long, default_value = "1.0", env = "SCALE")]
+    pub scale: f64,
+}
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -32,7 +79,9 @@ async fn main() -> eyre::Result<()> {
     let now = SystemTime::now();
 
     // initialize configuration options
-    let cfg = Config::init().wrap_err("Failed configuration initialization")?;
+    let cfg = Config::parse();
+
+    debug!("Parsed config: {:#?}", cfg);
 
     // define type of credential (pairing token or credential secret) to use to establish an MQTT
     // connection with Astarte
@@ -53,7 +102,7 @@ async fn main() -> eyre::Result<()> {
 
     // connect to Astarte
     let (client, mut connection) = DeviceBuilder::new()
-        .store_dir(cfg.store_directory)
+        .store_dir(cfg.store_dir)
         .await?
         .interface_directory(cfg.interfaces_folder.as_path())?
         .connect(mqtt_config)
@@ -105,6 +154,8 @@ async fn send_data(
 ) -> eyre::Result<()> {
     let mut base_value = BaseValue::try_from_system_time(now, scale)?;
 
+    debug!("sending data to Astarte with {math_function} math function");
+
     loop {
         // Send data to Astarte
         let value = math_function.compute(base_value.value());
@@ -113,7 +164,7 @@ async fn send_data(
             .send(&interface_datastream_do, "/test/value", value)
             .await?;
 
-        debug!("Data sent on endpoint /test/value, content: {value}");
+        debug!("data sent on endpoint /test/value, content: {value}");
 
         // update the data to send at the next iteration
         base_value.update();

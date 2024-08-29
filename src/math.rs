@@ -8,6 +8,7 @@
 
 use f64::consts::PI;
 use std::f64;
+use std::fmt::Display;
 use std::time::{SystemTime, SystemTimeError};
 
 /// Value used to derive other values to be sent to Astarte
@@ -42,7 +43,7 @@ impl BaseValue {
 }
 
 /// Math functions
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, clap::ValueEnum)]
 pub enum MathFunction {
     /// Sine
     Sin,
@@ -63,6 +64,24 @@ pub enum MathFunction {
     /// Default value
     #[default]
     Default,
+}
+
+impl Display for MathFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            MathFunction::Sin => "sin",
+            MathFunction::NoiseSin => "noise sin",
+            MathFunction::RandomSpikesSin => "random spikes sin",
+            MathFunction::Const => "const",
+            MathFunction::Saw => "saw",
+            MathFunction::Rect => "rect",
+            MathFunction::Sinc => "sinc",
+            MathFunction::Random => "random",
+            MathFunction::Default => "default",
+        };
+
+        write!(f, "{s}")
+    }
 }
 
 impl From<String> for MathFunction {
