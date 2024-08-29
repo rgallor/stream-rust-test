@@ -17,10 +17,10 @@ export DEVICE_ID=""
 export CREDENTIALS_SECRET=""
 #export PAIRING_TOKEN=""
 export PAIRING_URL="http://api.astarte.localhost/pairing"
-export STORE_DIR="/tmp/edgehog/store"
+export STORE_DIR="/tmp/stream-rust-test/store"
 export IGNORE_SSL_ERRORS="true"
 export MATH_FUNCTION="sin"
-export INTERVAL_BTW_SAMPLES=1000
+export INTERVAL_BTW_SAMPLES=500
 export SCALE=3
 
 # Navigate to the project root
