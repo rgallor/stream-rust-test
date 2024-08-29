@@ -18,5 +18,9 @@ rust-version = "1.72.0"
 description = "Astarte Rust SDK based data stream test."
 
 [dependencies]
+astarte-device-sdk = "0.8.2"
 color-eyre = "0.6.3"
+tokio = { version = "1.37.0", features = ["rt-multi-thread", "sync", "macros", "signal"] }
+tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"]}
+rand = "0.8.5"
