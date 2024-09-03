@@ -12,13 +12,6 @@ set -eEuo pipefail
 export RUST_LOG="debug"
 
 # Set application environment variables
-export REALM=""
-export DEVICE_ID=""
-export CREDENTIALS_SECRET=""
-#export PAIRING_TOKEN=""
-export PAIRING_URL="http://api.astarte.localhost/pairing"
-export STORE_DIR="/tmp/stream-rust-test/store"
-export IGNORE_SSL_ERRORS="true"
 export MATH_FUNCTION="sin"
 export INTERVAL_BTW_SAMPLES=500
 export SCALE=3

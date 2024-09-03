@@ -9,3 +9,11 @@ License: Apache-2.0
 Files: interfaces/*
 Copyright: 2024 SECO Mind Srl
 License: Apache-2.0
+
+Files: astarte-device-conf/*
+Copyright: 2024 SECO Mind Srl
+License: Apache-2.0
+
+Files: **/.env
+Copyright: 2024 SECO Mind Srl
+License: Apache-2.0
