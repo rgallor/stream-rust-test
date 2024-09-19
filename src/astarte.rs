@@ -12,7 +12,7 @@ use astarte_device_sdk::builder::{DeviceBuilder, DeviceSdkBuild};
 use astarte_device_sdk::store::SqliteStore;
 use astarte_device_sdk::transport::grpc::{Grpc, GrpcConfig};
 use astarte_device_sdk::transport::mqtt::{Credential, Mqtt, MqttConfig};
-use astarte_device_sdk::{Client, DeviceClient, DeviceConnection};
+use astarte_device_sdk::{Client, DeviceClient, DeviceConnection, AstarteAggregate};
 use clap::ValueEnum;
 use color_eyre::eyre;
 use color_eyre::eyre::{ContextCompat, OptionExt, WrapErr};
@@ -363,6 +363,50 @@ pub async fn send_data(
 
         // Sleep interval secs
         tokio::time::sleep(std::time::Duration::from_millis(cfg.interval_btw_samples)).await;
+    }
+}
+
+#[derive(Debug, Clone, AstarteAggregate)]
+enum Data {
+
+}
+
+pub async fn receive_data(client: DeviceClient<SqliteStore>) -> eyre::Result<()> {
+    loop {
+        match client.recv().await {
+            Ok(data) => {
+                if let astarte_device_sdk::Value::Individual(var) = data.data {
+
+                    // let mut iter = data.path.splitn(3, '/').skip(1);
+                    // let led_id = iter
+                    //     .next()
+                    //     .and_then(|id| id.parse::<u16>().ok())
+                    //     .ok_or("Incorrect error received.")?;
+                    //
+                    // match iter.next() {
+                    //     Some("enable") => {
+                    //         println!(
+                    //             "Received new enable datastream for LED number {}. LED status is now {}",
+                    //             led_id,
+                    //             if var == true { "ON" } else { "OFF" }
+                    //         );
+                    //     }
+                    //     Some("intensity") => {
+                    //         let value: f64 = var.try_into().unwrap();
+                    //         println!(
+                    //             "Received new intensity datastream for LED number {}. LED intensity is now {}",
+                    //             led_id, value
+                    //         );
+                    //     }
+                    //     item => {
+                    //         error!("unrecognized {item:?}")
+                    //     }
+                    // }
+                }
+            }
+            Err(RecvError::Disconnected) => return Ok(()),
+            Err(err) => error!(%err),
+        }
     }
 }
 

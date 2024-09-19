@@ -76,7 +76,11 @@ async fn main() -> eyre::Result<()> {
     }
 
     // spawn task to send data to Astarte
-    tasks.spawn(send_data(client, now, cli_cfg));
+    let client_cl = client.clone();
+    tasks.spawn(send_data(client_cl, now, cli_cfg));
+
+    // spawn task to receive data from Astarte
+    tasks.spawn(receive_data(client));
 
     // handle tasks termination
     loop {
