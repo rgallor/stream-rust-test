@@ -7,4 +7,6 @@
 #![doc = include_str!("../README.md")]
 #![warn(clippy::dbg_macro, missing_docs, rustdoc::missing_crate_level_docs)]
 
+pub mod astarte;
+pub mod cli;
 pub mod math;
