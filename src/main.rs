@@ -9,14 +9,17 @@ use clap::Parser;
 use color_eyre::eyre;
 use color_eyre::eyre::WrapErr;
 use std::time::SystemTime;
-use stream_rust_test::astarte::{send_data, ConnectionConfigBuilder, SdkConnection};
+use stream_rust_test::astarte::{receive_data, send_data, ConnectionConfigBuilder, SdkConnection};
 use stream_rust_test::cli::Config;
+use stream_rust_test::config::StreamConfig;
 use stream_rust_test::shutdown::shutdown;
 use tokio::task::JoinSet;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
+
+const DEFAULT_CHANNEL_SIZE: usize = 50;
 
 fn env_filter() -> eyre::Result<EnvFilter> {
     EnvFilter::builder()
@@ -93,8 +96,17 @@ async fn main() -> eyre::Result<()> {
         }
     }
 
+    // channel used to update the stream configuration
+    let (tx_cfg, rx_cfg) = tokio::sync::mpsc::channel(DEFAULT_CHANNEL_SIZE);
+
+    let client_cl = client.clone();
+
+    // spawn task to receive data from Astarte
+    tasks.spawn(receive_data(client_cl, tx_cfg));
+
     // spawn task to send data to Astarte
-    tasks.spawn(send_data(client, now, cli_cfg));
+    let stream_cfg = StreamConfig::try_from_cli(cli_cfg, now)?;
+    tasks.spawn(send_data(client, rx_cfg, stream_cfg));
 
     // handle tasks termination
     loop {

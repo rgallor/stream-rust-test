@@ -6,9 +6,9 @@
 
 //! Astarte builder and configuration structures.
 
-use crate::cli::Config;
-use crate::math::BaseValue;
+use crate::config::{StreamConfig, StreamConfigUpdate};
 use astarte_device_sdk::builder::{DeviceBuilder, DeviceSdkBuild};
+use astarte_device_sdk::client::RecvError;
 use astarte_device_sdk::store::SqliteStore;
 use astarte_device_sdk::transport::grpc::{Grpc, GrpcConfig};
 use astarte_device_sdk::transport::mqtt::{Credential, Mqtt, MqttConfig};
@@ -19,13 +19,17 @@ use color_eyre::eyre::{bail, eyre, OptionExt, WrapErr};
 use serde::Deserialize;
 use std::env::VarError;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 use std::{env, io};
-use tracing::{debug, error};
+use tokio::select;
+use tokio::sync::mpsc::{Receiver, Sender};
+use tracing::{debug, error, info, warn};
 use uuid::{uuid, Uuid};
 
 const DEVICE_DATASTREAM: &str =
     include_str!("../interfaces/org.astarte-platform.genericsensors.Values.json");
+
+const SERVER_DATASTREAM: &str =
+    include_str!("../interfaces/org.astarte-platform.genericcommands.ServerCommands.json");
 
 const DEFAULT_STREAM_NODE_ID: Uuid = uuid!("d72a6187-7cf1-44cc-87e8-e991936166dc");
 
@@ -162,7 +166,8 @@ impl ConnectionConfigBuilder {
         let builder = DeviceBuilder::new()
             .store_dir(&store_directory)
             .await?
-            .interface_str(DEVICE_DATASTREAM)?;
+            .interface_str(DEVICE_DATASTREAM)?
+            .interface_str(SERVER_DATASTREAM)?;
 
         match astarte_connection {
             AstarteConnection::Mqtt => {
@@ -255,31 +260,95 @@ impl GrpcConfigBuilder {
 /// Send data to Astarte
 pub async fn send_data(
     client: DeviceClient<SqliteStore>,
-    now: SystemTime,
-    cfg: Config,
+    mut rx: Receiver<StreamConfigUpdate>,
+    mut stream_cfg: StreamConfig,
 ) -> eyre::Result<()> {
-    let mut base_value = BaseValue::try_from_system_time(now, cfg.scale)?;
-
-    debug!(
-        "sending data to Astarte with {} math function",
-        cfg.math_function
-    );
-
     loop {
-        // Send data to Astarte
-        let value = cfg.math_function.compute(base_value.value());
+        // wait until an interval has elapsed, thus data must be sent to Astarte, or a new stream
+        // config is received, hence modify it
+        select! {
+            _ = tokio::time::sleep(std::time::Duration::from_millis(stream_cfg.interval)) => {
+                debug!(
+                    "sending data to Astarte with {} math function and scale {}",
+                    stream_cfg.math_function, stream_cfg.scale
+                );
 
-        client
-            .send(&cfg.interface_datastream_do, "/test/value", value)
-            .await?;
+                // Send data to Astarte
+                let value = stream_cfg.next_value();
 
-        debug!("data sent on endpoint /test/value, content: {value}");
+                // TODO: here the sensor_id is static. Should we introduce it as a CLI argument or
+                //  another way to receive it "dynamically"?
 
-        // update the data to send at the next iteration
-        base_value.update();
+                client
+                    .send(stream_cfg.interface(), "/sensor_id_123/value", value)
+                    .await?;
 
-        // Sleep interval secs
-        tokio::time::sleep(std::time::Duration::from_millis(cfg.interval_btw_samples)).await;
+                debug!("data sent on endpoint /sensor_id_123/value, content: {value}");
+
+                // update the value upon which the data to be sent to Astarte at the next iteration
+                // will be computed
+                stream_cfg.update_value();
+            }
+            new_cfg = rx.recv() => {
+                let Some(new_cfg) = new_cfg else {
+                    warn!("channel closed, cannot update stream config anymore");
+                    return Ok(());
+                };
+
+                info!("updating stream config");
+                stream_cfg.update_cfg(new_cfg)
+            }
+        }
+    }
+}
+
+/// Receive data from Astarte
+pub async fn receive_data(
+    client: DeviceClient<SqliteStore>,
+    tx: Sender<StreamConfigUpdate>,
+) -> eyre::Result<()> {
+    loop {
+        match client.recv().await {
+            Ok(data) => {
+                if let astarte_device_sdk::Value::Individual(var) = data.data {
+                    // split the mapping path, which looks like "/foo/bar"
+                    let mut iter = data.path.splitn(3, '/').skip(1);
+
+                    let sensor_id = iter.next().ok_or_eyre("missing sensor id")?;
+
+                    match iter.next() {
+                        Some("function") => {
+                            let function = String::try_from(var)?.into();
+                            debug!(
+                                "Received new function datastream for sensor {sensor_id}. sensor function is now {function}"
+                            );
+                            tx.send(StreamConfigUpdate::function(sensor_id, function))
+                                .await?;
+                        }
+                        Some("interval") => {
+                            let interval = i64::try_from(var)?.try_into()?;
+                            debug!(
+                                "Received new interval datastream for sensor {sensor_id}. sensor interval is now {interval}"
+                            );
+                            tx.send(StreamConfigUpdate::interval(sensor_id, interval))
+                                .await?;
+                        }
+                        Some("scale") => {
+                            let scale = var.try_into()?;
+                            debug!(
+                                "Received new scale datastream for sensor {sensor_id}. sensor scale is now {scale}"
+                            );
+                            tx.send(StreamConfigUpdate::scale(sensor_id, scale)).await?;
+                        }
+                        item => {
+                            error!("unrecognized {item:?}")
+                        }
+                    }
+                }
+            }
+            Err(RecvError::Disconnected) => return Ok(()),
+            Err(err) => error!(%err),
+        }
     }
 }
 

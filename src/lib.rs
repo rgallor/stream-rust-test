@@ -9,5 +9,6 @@
 
 pub mod astarte;
 pub mod cli;
+pub mod config;
 pub mod math;
 pub mod shutdown;

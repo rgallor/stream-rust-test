@@ -177,3 +177,35 @@ work.
 ```sh
 docker run --network="host" [ENV VARS] [MOUNT config.toml] stream-rust-test:latest
 ```
+
+## Update stream parameters
+
+Once the device is connected to Astarte and is sending data periodically, we can change the math function, the scale and
+the interval between 2 samples by publishing new values on a server-owned interface by using the `send-data` _astartectl_
+command.
+
+The syntax to use is the following:
+```
+astartectl appengine
+    --appengine-url <APPENGINE_URL> 
+    --realm-management-url <REALM_MANAGEMENT_URL>
+    --realm-key <REALM>_private.pem
+    --realm-name <REALM> devices send-data <DEVICE_ID>
+    <SERVER_OWNED_INTERFACE> <ENDPOINT> <VALUE>
+ ```
+
+Where APPENGINE_URL, REALM_MANAGEMENT_URL and REALM are the appengine url, realm management url and your realm 
+name respectively. The DEVICE_ID is the device ID to send the data to, ENDPOINT is the endpoint to send data to, 
+which in this example should be composed by a sensor id and the math function, the scale or the interval endpoint 
+(e.g. /sensor_id_123/function), and VALUE is the value to send (e.g. "sin" if _function_ is the chosen endpoint).
+
+For instance, supposing you are using an Astarte instance running on localhost:
+ ```
+astartectl appengine 
+    --appengine-url http://api.astarte.localhost/appengine 
+    --realm-management-url http://api.astarte.localhost/realmmanagement 
+    --realm-key test_private.pem 
+    --realm-name test devices send-data <DEVICE_ID> 
+    org.astarte-platform.genericcommands.ServerCommands "/sensor_id_123/function" "sin"
+ ```
+
