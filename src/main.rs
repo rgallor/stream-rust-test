@@ -12,6 +12,7 @@ use clap::Parser;
 use color_eyre::eyre;
 use color_eyre::eyre::OptionExt;
 use serde::Deserialize;
+use std::env::VarError;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use std::{env, io};
@@ -20,7 +21,7 @@ use tokio::task::JoinSet;
 use tracing::{debug, error};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{fmt, EnvFilter};
 
 const DEVICE_DATASTREAM: &str =
     include_str!("../interfaces/org.astarte-platform.genericsensors.Values.json");
@@ -170,14 +171,26 @@ struct Config {
     scale: f64,
 }
 
+fn env_filter() -> eyre::Result<EnvFilter> {
+    let filter = env::var("RUST_LOG").or_else(|err| match err {
+        VarError::NotPresent => Ok("stream_rust_test=debug".to_string()),
+        err @ VarError::NotUnicode(_) => Err(err),
+    })?;
+
+    let env_filter = EnvFilter::try_new(filter)?;
+
+    Ok(env_filter)
+}
+
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     color_eyre::install()?;
 
+    let filter = env_filter()?;
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer())
-        .with(EnvFilter::from_default_env())
-        .try_init()?;
+        .with(fmt::layer())
+        .with(filter)
+        .init();
 
     // time instant when the program starts its execution
     let now = SystemTime::now();
