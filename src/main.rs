@@ -10,7 +10,7 @@ use astarte_device_sdk::transport::mqtt::{Credential, MqttConfig};
 use astarte_device_sdk::{Client, DeviceClient, EventLoop};
 use clap::Parser;
 use color_eyre::eyre;
-use color_eyre::eyre::{bail, eyre};
+use color_eyre::eyre::{bail, OptionExt};
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -172,9 +172,9 @@ async fn load_astarte_cfg() -> eyre::Result<AstarteConfig> {
         .await;
 
     // if more folders are present, take only the first one
-    let Some(dir) = dirs.first_mut() else {
-        return Err(eyre!("No astarte devices config folder found"));
-    };
+    let dir = dirs
+        .first_mut()
+        .ok_or_eyre("No astarte devices config folder found")?;
 
     dir.push("config.toml");
 
