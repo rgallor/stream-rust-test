@@ -29,14 +29,56 @@ astartectl utils device-id generate-random
 
 ## Configuring the application
 
-Create a configuration directory `astarte-device-conf` with a `config.toml` file inside it containing:
+You can configure the application either by using a direct MQTT connection to an Astarte instance or by connecting
+through gRPC to an Astarte Message Hub instance (already configured and connected to Astarte).
+
+To application can be configured by either using environment variables or a `config.toml` file.
+
+If you want to use environment variables to set up the application, you can set the following:
+- `ASTARTE_CONNECTION`: specify which type of connection to Astarte must be used
+- `ASTARTE_REALM`: name of the astarte realm
+- `ASTARTE_DEVICE_ID`: astarte device id
+- `ASTARTE_CREDENTIALS_SECRET`: astarte device credential secret
+- `ASTARTE_PAIRING_TOKEN`: token used to register a device and obtain a `credentials_secret`
+- `ASTARTE_PAIRING_URL`: address of the astarte broker to connect the device to Astarte
+- `ASTARTE_STORE_DIRECTORY`: path to the directory where to store data (e.g., in case of Astarte properties)
+- `ASTARTE_IGNORE_SSL_ERRORS`: boolean stating if SSL errors should be ignored (default: false)
+
+Instead, if you want to use a configuration file, you must specify its location by using the `ASTARTE_CONFIG_PATH`
+environment variable. The `config.toml` file must contain the following information:
+```toml
+[astarte]
+connection = "mqtt" # or "grpc"
+store_directory = "/tmp/stream-rust-test/store/"
+
+# MQTT connection to Astarte
+[astarte.mqtt]
+realm = "REALM_NAME_HERE"
+device_id = "DEVICE_ID_HERE"
+pairing_url = "PAIRING_URL_HERE"
+credentials_secret = "CREDENTIALS_SECRET_HERE"
+#pairing_token = "PAIRING_TOKEN_HERE"
+astarte_ignore_ssl = false
+
+# gRPC connection to the Astarte Message Hub
+[astarte.grpc]
+endpoint = "http://[::1]:50051"
+```
+
+A detailed description of the fields is depicted below:
+- `connection`: a field indicating which type of connection to Astarte should be used.
+- `store_directory`: the directory specifying where persistent data will be saved.
 - `realm`: the name of the Astarte realm.
 - `device_id`: the id of the device you want to connect to Astarte.
 - `pairing_url`: the URL of the Astarte Pairing endpoint. It should be something like `https://<api url>/pairing`.
 - `credentials_secret` or `pairing_token`: the identifiers used to authenticate the device through Astarte. If both are
   present, the credential secret will be used.
-- `store_directory`: the directory specifying where persistent data will be saved.
-- `interfaces_directory`: the directory where the astarte interfaces used by the device are saved.
+- `astarte_ignore_ssl`: a flag stating if SSL errors should be ignored when connecting to Astarte.
+- `endpoint`: the endpoint where the Astarte Message Hub instance is listening for new connections.
+
+Since the application can be configured with a CLI, when [running the application](#build-and-run) you can specify the
+type of connection (`mqtt` or `grpc`) and the path to the `config.toml` file with the `--astarte_connection` (`-c`) and
+`--astarte_config_path` options, respectively.
 
 ## Build and run
 
@@ -64,26 +106,8 @@ The following options can be set:
 - `--interval` allows to set the sending interval;
 - `--scale` allows to scale the generated result;
 
-Furthermore, you can specify the path to the `config.toml` file where te Astarte configuration can be found with the
-`--astarte_config_path` option, or you can set the `ASTARTE_CONFIG_PATH` environment variable.
-An example of `config.toml` file is the following:
-
-```toml
-realm = "test"
-device_id = "DEVICE_ID_HERE"
-pairing_url = "http://api.astarte.localhost/pairing"
-credentials_secret = "CREDENTIALS_SECRET_HERE"
-#pairing_token = "PAIRING_TOKEN_HERE"
-astarte_ignore_ssl = true
-store_directory = "/tmp/stream-rust-test/store/"
-```
-
-It is also possible to directly specify the Astarte device configuration information by using the following environment
-variables:
-- `ASTARTE_REALM`: name of the astarte realm
-- `ASTARTE_DEVICE_ID`: astarte device id
-- `ASTARTE_CREDENTIALS_SECRET`: astarte device credential secret
-- `ASTARTE_PAIRING_TOKEN`: token used to register a device and obtain a `credentials_secret`
-- `ASTARTE_PAIRING_URL`: address of the astarte broker to connect the device to Astarte
-- `ASTARTE_STORE_DIRECTORY`: path to the directory where to store data (e.g., in case of Astarte properties)
-- `ASTARTE_IGNORE_SSL_ERRORS`: boolean stating if SSL errors should be ignored (default: false)
+You can also set the stream options by using the following environment variables:
+- `MATH_FUNCTION`
+- `INTERFACE_NAME`
+- `INTERVAL_BTW_SAMPLES`
+- `SCALE`
