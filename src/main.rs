@@ -10,45 +10,148 @@ use astarte_device_sdk::transport::mqtt::{Credential, MqttConfig};
 use astarte_device_sdk::{Client, DeviceClient, EventLoop};
 use clap::Parser;
 use color_eyre::eyre;
-use color_eyre::eyre::{bail, OptionExt};
+use color_eyre::eyre::OptionExt;
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use std::{env, io};
 use stream_rust_test::math::{BaseValue, MathFunction};
 use tokio::task::JoinSet;
-use tokio_stream::wrappers::ReadDirStream;
-use tokio_stream::StreamExt;
 use tracing::{debug, error};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
-#[derive(Debug, Clone, Deserialize)]
+const DEVICE_DATASTREAM: &str =
+    include_str!("../interfaces/org.astarte-platform.genericsensors.Values.json");
+
+#[derive(Debug, Default, Deserialize)]
+struct AstarteConfigBuilder {
+    /// Astarte realm
+    realm: Option<String>,
+    /// Device ID
+    device_id: Option<String>,
+    /// Device credential
+    #[serde(flatten)]
+    credential: Option<Credential>,
+    /// Astarte pairing url
+    pairing_url: Option<String>,
+    /// Astarte store directory
+    store_directory: Option<PathBuf>,
+    /// Flag to ignore Astarte SSL errors
+    astarte_ignore_ssl: Option<bool>,
+}
+
+impl AstarteConfigBuilder {
+    // init astarte config from env var if set
+    fn from_env() -> Self {
+        let realm = env::var("ASTARTE_REALM").ok();
+        let device_id = env::var("ASTARTE_DEVICE_ID").ok();
+        let pairing_url = env::var("ASTARTE_PAIRING_URL").ok();
+        let store_directory = env::var("ASTARTE_STORE_DIRECTORY").ok().map(PathBuf::from);
+        let astarte_ignore_ssl = env::var("ASTARTE_IGNORE_SSL_ERRORS")
+            .map(|s| s.to_lowercase() == "true")
+            .ok();
+        let credential = env::var("ASTARTE_CREDENTIALS_SECRET")
+            .ok()
+            .map(Credential::secret)
+            .or_else(|| {
+                env::var("ASTARTE_PAIRING_TOKEN")
+                    .ok()
+                    .map(Credential::paring_token)
+            });
+
+        Self {
+            realm,
+            device_id,
+            credential,
+            pairing_url,
+            store_directory,
+            astarte_ignore_ssl,
+        }
+    }
+
+    /// Update the missing config values taking them from a config.toml file
+    ///
+    /// docker  -> path = "/etc/stream-rust-test/config.toml"
+    /// default -> path = "astarte-device-conf/config.toml"
+    async fn update_with_toml(&mut self, path: impl AsRef<Path>) {
+        match tokio::fs::read_to_string(&path).await {
+            Ok(file) => {
+                // retrieve the astarte config information from the config.toml file
+                match toml::from_str::<AstarteConfigBuilder>(&file) {
+                    Ok(toml_cfg) => {
+                        // update the configs
+                        self.merge(toml_cfg);
+                    }
+                    Err(err) => {
+                        error!("error deserializing astarte cfg from toml: {err}");
+                    }
+                }
+            }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                error!("file {} not found", path.as_ref().display());
+            }
+            Err(err) => {
+                error!("error trying to read {}: {err}", path.as_ref().display());
+            }
+        }
+    }
+
+    /// Merge two configs
+    ///
+    /// Prioritize the already existing fields
+    fn merge(&mut self, other: AstarteConfigBuilder) {
+        self.realm = self.realm.take().or(other.realm);
+        self.device_id = self.device_id.take().or(other.device_id);
+        self.credential = self.credential.take().or(other.credential);
+        self.pairing_url = self.pairing_url.take().or(other.pairing_url);
+        self.store_directory = self.store_directory.take().or(other.store_directory);
+        self.astarte_ignore_ssl = self.astarte_ignore_ssl.take().or(other.astarte_ignore_ssl);
+    }
+
+    /// Build a complete Astarte configuration or return an error
+    fn build(self) -> eyre::Result<AstarteConfig> {
+        Ok(AstarteConfig {
+            realm: self.realm.ok_or_eyre("missing realm")?,
+            device_id: self.device_id.ok_or_eyre("missing device id")?,
+            credential: self
+                .credential
+                .ok_or_eyre("missing either a credential secret or a pairing token")?,
+            pairing_url: self.pairing_url.ok_or_eyre("missing pairing url")?,
+            store_directory: self.store_directory.ok_or_eyre("missing store directory")?,
+            // if missing, set the ignore ssl error flat to false
+            astarte_ignore_ssl: self.astarte_ignore_ssl.unwrap_or_default(),
+        })
+    }
+}
+
+#[derive(Debug)]
 struct AstarteConfig {
     /// Astarte realm
     realm: String,
     /// Device ID
     device_id: String,
-    /// Device credential secret
-    #[serde(default)]
-    credentials_secret: Option<String>,
-    /// Device pairing token
-    #[serde(default)]
-    pairing_token: Option<String>,
+    /// Device credential
+    credential: Credential,
     /// Astarte pairing url
     pairing_url: String,
     /// Astarte store directory
     store_directory: PathBuf,
     /// Flag to ignore Astarte SSL errors
     astarte_ignore_ssl: bool,
-    /// Path to folder containing the Astarte Device interfaces
-    interfaces_directory: PathBuf,
 }
 
 /// Configuration for the values to be sent to Astarte
 #[derive(Debug, Clone, Parser)]
 #[clap(version, about)]
 struct Config {
+    /// Path to the directory containing the Astarte configuration file config.toml
+    ///
+    /// First, the Astarte configuration is taken from ENV vars, then from the config.toml if the
+    /// path has been specified
+    #[clap(short, long, env = "ASTARTE_CONFIG_PATH")]
+    astarte_config_path: Option<PathBuf>,
     /// Math function the device will use to send data to Astarte
     #[clap(short, long, default_value = "default", env = "MATH_FUNCTION")]
     math_function: MathFunction,
@@ -85,25 +188,22 @@ async fn main() -> eyre::Result<()> {
     debug!("Parsed config: {:#?}", cli_cfg);
 
     // Load astarte configuration
-    let astarte_cfg: AstarteConfig = load_astarte_cfg().await?;
+    let mut astarte_cfg_builder = AstarteConfigBuilder::from_env();
+
+    if let Some(path) = &cli_cfg.astarte_config_path {
+        let path = path.join("config.toml");
+        astarte_cfg_builder.update_with_toml(path).await;
+    }
+
+    let astarte_cfg = astarte_cfg_builder.build()?;
 
     debug!("Parsed Astarte config: {:#?}", astarte_cfg);
-
-    // define type of credential (pairing token or credential secret) to use to establish an MQTT
-    // connection with Astarte
-    let cred = if let Some(pairing) = astarte_cfg.pairing_token.as_deref() {
-        Credential::paring_token(pairing)
-    } else if let Some(secret) = astarte_cfg.credentials_secret.as_deref() {
-        Credential::secret(secret)
-    } else {
-        bail!("missing credential secret or pairing token");
-    };
 
     // define MQTT configuration options
     let mut mqtt_config = MqttConfig::new(
         astarte_cfg.realm,
         astarte_cfg.device_id,
-        cred,
+        astarte_cfg.credential,
         astarte_cfg.pairing_url,
     );
 
@@ -113,9 +213,9 @@ async fn main() -> eyre::Result<()> {
 
     // connect to Astarte
     let (client, mut connection) = DeviceBuilder::new()
-        .store_dir(astarte_cfg.store_directory.as_path())
+        .store_dir(astarte_cfg.store_directory)
         .await?
-        .interface_directory(astarte_cfg.interfaces_directory.as_path())?
+        .interface_str(DEVICE_DATASTREAM)?
         .connect(mqtt_config)
         .await?
         .build();
@@ -145,45 +245,6 @@ async fn main() -> eyre::Result<()> {
     }
 
     Ok(())
-}
-
-async fn load_astarte_cfg() -> eyre::Result<AstarteConfig> {
-    // search the astarte-device-DEVICE_ID_HERE-conf with the DEVICE_ID specified by the user
-    // starting from the root of the project
-    let dirs = tokio::fs::read_dir(".").await?;
-    let dirs_stream = ReadDirStream::new(dirs);
-
-    let mut dirs = dirs_stream
-        .filter_map(|res| res.ok().map(|e| e.path()))
-        .filter(|path| {
-            if !path.is_dir() {
-                return false;
-            }
-
-            let name = path
-                .file_name()
-                .expect("failed to retrieve the folder name")
-                .to_string_lossy();
-
-            // true if the folder name starts and ends with the predefined values
-            name.starts_with("astarte-device-") && name.ends_with("-conf")
-        })
-        .collect::<Vec<_>>()
-        .await;
-
-    // if more folders are present, take only the first one
-    let dir = dirs
-        .first_mut()
-        .ok_or_eyre("No astarte devices config folder found")?;
-
-    dir.push("config.toml");
-
-    let file = tokio::fs::read_to_string(dir).await?;
-
-    // retrieve the astarte config information
-    let astarte_cfg: AstarteConfig = toml::from_str(&file)?;
-
-    Ok(astarte_cfg)
 }
 
 /// Send data to Astarte
