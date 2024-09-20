@@ -111,9 +111,9 @@ dependencies = [
 
 [[package]]
 name = "astarte-device-sdk"
-version = "0.8.2"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89c9c93c614a0a71a65f6bc892d4e361133043d650099e947dee52f7410687f4"
+checksum = "5ec22c3154e59a9fe2afd7c00ea0e3f16ed9f72e7e840918c9c2cb42c961c97a"
 dependencies = [
  "ahash",
  "async-trait",
@@ -141,6 +141,7 @@ dependencies = [
  "sqlx",
  "sync_wrapper",
  "thiserror",
+ "time",
  "tokio",
  "url",
  "uuid",
