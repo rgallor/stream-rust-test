@@ -1,0 +1,7 @@
+realm = "test"
+device_id = "DEVICE_ID_HERE"
+pairing_url = "http://api.astarte.localhost/pairing"
+credentials_secret = "CREDENTIALS_SECRET_HERE"
+#pairing_token = "PAIRING_TOKEN_HERE"
+astarte_ignore_ssl = true
+store_directory = "/tmp/stream-rust-test/store/"
