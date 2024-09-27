@@ -50,7 +50,8 @@ async fn main() -> eyre::Result<()> {
     let mut tasks = JoinSet::<eyre::Result<()>>::new();
 
     // Load astarte configuration
-    let mut astarte_cfg_builder = ConnectionConfigBuilder::with_library(cli_cfg.astarte_connection);
+    let mut astarte_cfg_builder =
+        ConnectionConfigBuilder::with_connection(cli_cfg.astarte_connection);
 
     // populate the builder using the environment variables (if set)
     astarte_cfg_builder.from_env();
