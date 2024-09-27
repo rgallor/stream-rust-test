@@ -29,13 +29,13 @@ astartectl utils device-id generate-random
 
 ## Configuring the application
 
-You can configure the application either by using a direct MQTT connection to an Astarte instance or by connecting
+You can configure the application either by using a direct MQTT connection to an Astarte instance or by connecting it
 through gRPC to an Astarte Message Hub instance (already configured and connected to Astarte).
 
-To application can be configured by either using environment variables or a `config.toml` file.
+The application can be configured by either using environment variables or a `config.toml` file.
 
 If you want to use environment variables to set up the application, you can set the following:
-- `ASTARTE_CONNECTION`: specify which type of connection to Astarte must be used
+- `ASTARTE_CONNECTION`: which type of connection to Astarte must be used
 - `ASTARTE_REALM`: name of the astarte realm
 - `ASTARTE_DEVICE_ID`: astarte device id
 - `ASTARTE_CREDENTIALS_SECRET`: astarte device credential secret
@@ -43,6 +43,7 @@ If you want to use environment variables to set up the application, you can set 
 - `ASTARTE_PAIRING_URL`: address of the astarte broker to connect the device to Astarte
 - `ASTARTE_STORE_DIRECTORY`: path to the directory where to store data (e.g., in case of Astarte properties)
 - `ASTARTE_IGNORE_SSL_ERRORS`: boolean stating if SSL errors should be ignored (default: false)
+- `ASTARTE_MSGHUB_ENDPOINT`: endpoint of the Astarte Message Hub instance
 
 Instead, if you want to use a configuration file, you must specify its location by using the `ASTARTE_CONFIG_PATH`
 environment variable. The `config.toml` file must contain the following information:
@@ -65,12 +66,14 @@ astarte_ignore_ssl = false
 endpoint = "http://[::1]:50051"
 ```
 
+NOTE: only one of the `[astarte.mqtt]` or `[astarte.grpc]` sections should be specified in the file.
+
 A detailed description of the fields is depicted below:
 - `connection`: a field indicating which type of connection to Astarte should be used.
 - `store_directory`: the directory specifying where persistent data will be saved.
 - `realm`: the name of the Astarte realm.
 - `device_id`: the id of the device you want to connect to Astarte.
-- `pairing_url`: the URL of the Astarte Pairing endpoint. It should be something like `https://<api url>/pairing`.
+- `pairing_url`: the URL of the Astarte Pairing endpoint (e.g., `https://<api url>/pairing`.)
 - `credentials_secret` or `pairing_token`: the identifiers used to authenticate the device through Astarte. If both are
   present, the credential secret will be used.
 - `astarte_ignore_ssl`: a flag stating if SSL errors should be ignored when connecting to Astarte.
@@ -100,11 +103,11 @@ The full list of options can be shown with the command:
 Or you can use the `--help` option (instead of `-h`) to have a more detailed explanation of the available options.
 
 The following options can be set:
-- `--device` allows to set the device ID;
-- `--function` allows to choose the data generation function (one between `sin`, `noisesin`, `randomspikessin`, `saw`,
+- `--device`: set the device ID;
+- `--function`: choose the data generation function (one between `sin`, `noisesin`, `randomspikessin`, `saw`,
   `rect`, `sinc`, `random`, `x` and a default one);
-- `--interval` allows to set the sending interval;
-- `--scale` allows to scale the generated result;
+- `--interval`: set the sending interval;
+- `--scale`: set the scale of the generated result;
 
 You can also set the stream options by using the following environment variables:
 - `MATH_FUNCTION`

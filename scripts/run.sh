@@ -8,9 +8,6 @@
 
 set -eEuo pipefail
 
-# Set Rust environment variables
-export RUST_LOG="debug"
-
 # Set application environment variables
 export MATH_FUNCTION="sin"
 export INTERVAL_BTW_SAMPLES=500
