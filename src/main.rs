@@ -12,8 +12,9 @@ use std::env::VarError;
 use std::time::SystemTime;
 use stream_rust_test::astarte::{send_data, ConnectionConfigBuilder, SdkConnection};
 use stream_rust_test::cli::Config;
+use stream_rust_test::shutdown::shutdown;
 use tokio::task::JoinSet;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -78,17 +79,30 @@ async fn main() -> eyre::Result<()> {
     tasks.spawn(send_data(client, now, cli_cfg));
 
     // handle tasks termination
-    while let Some(res) = tasks.join_next().await {
-        match res {
-            Ok(Ok(())) => {}
-            Err(err) if err.is_cancelled() => {}
-            Err(err) => {
-                error!(error = %err, "Task panicked");
-                return Err(err.into());
-            }
-            Ok(Err(err)) => {
-                error!(error = %err, "Task returned an error");
-                return Err(err);
+    loop {
+        tokio::select! {
+            _ = shutdown()? => {
+                info!("CTRL C received, shutting down");
+                tasks.abort_all();
+                break;
+            },
+            opt = tasks.join_next() => {
+                let Some(res) = opt else {
+                    break;
+                };
+
+                match res {
+                        Ok(Ok(())) => {}
+                        Err(err) if err.is_cancelled() => {}
+                        Err(err) => {
+                            error!(error = %err, "Task panicked");
+                            return Err(err.into());
+                        }
+                        Ok(Err(err)) => {
+                            error!(error = %err, "Task returned an error");
+                            return Err(err);
+                        }
+                    }
             }
         }
     }

@@ -2064,6 +2064,7 @@ dependencies = [
  "astarte-device-sdk",
  "clap",
  "color-eyre",
+ "futures",
  "rand",
  "serde",
  "tokio",
