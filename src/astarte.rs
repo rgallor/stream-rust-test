@@ -29,7 +29,9 @@ const DEVICE_DATASTREAM: &str =
     include_str!("../interfaces/org.astarte-platform.genericsensors.Values.json");
 
 /// Specify which Astarte library use to connect to Astarte
-#[derive(Debug, Clone, Copy, Default, clap::ValueEnum, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, Eq, PartialEq, Ord, PartialOrd, clap::ValueEnum, Deserialize,
+)]
 pub enum AstarteConnection {
     /// Connect through MQTT to Astarte
     #[default]
@@ -361,5 +363,77 @@ pub async fn send_data(
 
         // Sleep interval secs
         tokio::time::sleep(std::time::Duration::from_millis(cfg.interval_btw_samples)).await;
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_connection_config_builder_build_failures() {
+        // empty config builder cannot build successfully
+        let cfg_builder = ConnectionConfigBuilder::with_connection(None).build().await;
+        assert!(cfg_builder.is_err());
+
+        // config builder with only the connection to astarte specified cannot build successfully
+        let con = AstarteConnection::Mqtt;
+        let cfg_builder = ConnectionConfigBuilder::with_connection(Some(con))
+            .build()
+            .await;
+        assert!(cfg_builder.is_err());
+
+        // check that only the astarte connection is added to the configuration
+        let mut cfg_builder = ConnectionConfigBuilder::with_connection(None);
+        let toml_str = r#"
+        [astarte]
+        connection = "mqtt"
+        "#;
+        let toml = toml::from_str::<ConfigToml>(toml_str).unwrap();
+        cfg_builder.merge(toml.astarte);
+        assert!(cfg_builder.astarte_connection.is_some());
+
+        // check that the astarte connection is not updated with toml info if it already contains a
+        // value
+        let con = AstarteConnection::Mqtt;
+        let mut cfg_builder = ConnectionConfigBuilder::with_connection(Some(con));
+        let toml_str = r#"
+        [astarte]
+        connection = "grpc"
+        "#;
+        let toml = toml::from_str::<ConfigToml>(toml_str).unwrap();
+        cfg_builder.merge(toml.astarte);
+        assert_eq!(cfg_builder.astarte_connection, Some(con));
+
+        // define store dire for the next tests
+        let mut tmp_dir = env::temp_dir();
+        tmp_dir.push("stream-rust-test-tests");
+        std::fs::create_dir_all(&tmp_dir).expect("failed to create store dir");
+
+        // cannot build successfully only with astarte connection and store path information
+        let cfg_builder = ConnectionConfigBuilder {
+            astarte_connection: Some(AstarteConnection::Mqtt),
+            store_directory: Some(tmp_dir.clone()),
+            mqtt_config: Default::default(),
+            grpc_config: Default::default(),
+        };
+        let res = cfg_builder.build().await;
+        assert!(res.is_err());
+
+        // check that the store path is not updated with toml info if it already contains a value
+        let mut cfg_builder = ConnectionConfigBuilder {
+            astarte_connection: Some(AstarteConnection::Mqtt),
+            store_directory: Some(tmp_dir.clone()),
+            mqtt_config: Default::default(),
+            grpc_config: Default::default(),
+        };
+        let toml_str = r#"
+        [astarte]
+        connection = "grpc"
+        store_directory = "/tmp/stream-rust-test/store/"
+        "#;
+        let toml = toml::from_str::<ConfigToml>(toml_str).unwrap();
+        cfg_builder.merge(toml.astarte);
+        assert_eq!(cfg_builder.store_directory, Some(tmp_dir.clone()));
     }
 }
