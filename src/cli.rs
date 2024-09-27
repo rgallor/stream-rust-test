@@ -17,7 +17,7 @@ use std::path::PathBuf;
 pub struct Config {
     /// Either use the Astarte Device SDK or the Astarte Message Hub
     #[clap(short = 'c', long, env = "ASTARTE_CONNECTION")]
-    pub astarte_connection: AstarteConnection,
+    pub astarte_connection: Option<AstarteConnection>,
     /// Path to the directory containing the Astarte configuration file config.toml
     ///
     /// First, the Astarte configuration is taken from ENV vars, then from the config.toml if the
