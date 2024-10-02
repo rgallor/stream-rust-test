@@ -6,7 +6,6 @@
 
 //! CLI configuration options
 
-use crate::astarte::AstarteConnection;
 use crate::math::MathFunction;
 use clap::Parser;
 use std::path::PathBuf;
@@ -15,9 +14,6 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Parser)]
 #[clap(version, about)]
 pub struct Config {
-    /// Either use the Astarte Device SDK or the Astarte Message Hub
-    #[clap(short = 'c', long, env = "ASTARTE_CONNECTION")]
-    pub astarte_connection: Option<AstarteConnection>,
     /// Path to the directory containing the Astarte configuration file config.toml
     ///
     /// First, the Astarte configuration is taken from ENV vars, then from the config.toml if the

@@ -12,7 +12,7 @@ use std::time::SystemTime;
 use stream_rust_test::astarte::{send_data, ConnectionConfigBuilder, SdkConnection};
 use stream_rust_test::cli::Config;
 use tokio::task::JoinSet;
-use tracing::{debug, error};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -40,21 +40,24 @@ async fn main() -> eyre::Result<()> {
     // initialize CLI configuration options
     let cli_cfg = Config::parse();
 
-    debug!("Parsed config: {:#?}", cli_cfg);
+    debug!("parsed CLI config: {:#?}", cli_cfg);
 
     let mut tasks = JoinSet::<eyre::Result<()>>::new();
 
-    // Load astarte configuration
-    let mut astarte_cfg_builder =
-        ConnectionConfigBuilder::with_connection(cli_cfg.astarte_connection);
-
     // populate the builder using the environment variables (if set)
-    astarte_cfg_builder.from_env();
+    let mut astarte_cfg_builder = ConnectionConfigBuilder::default();
 
-    if let Some(path) = &cli_cfg.astarte_config_path {
-        let path = path.join("config.toml");
-        astarte_cfg_builder.update_with_toml(path).await;
-    }
+    info!("retrieve Astarte connection config from ENV");
+    if let Err(err) = astarte_cfg_builder.try_from_env() {
+        warn!("failed to retrieve Astarte connection config from ENV: {err}");
+
+        if let Some(path) = &cli_cfg.astarte_config_path {
+            let path = path.join("config.toml");
+            info!("retrieve Astarte connection config from {}", path.display());
+
+            astarte_cfg_builder.from_toml(path).await;
+        }
+    };
 
     let (client, connection) = astarte_cfg_builder.build().await?;
 
