@@ -15,7 +15,7 @@ use astarte_device_sdk::transport::mqtt::{Credential, Mqtt, MqttConfig};
 use astarte_device_sdk::{Client, DeviceClient, DeviceConnection};
 use clap::ValueEnum;
 use color_eyre::eyre;
-use color_eyre::eyre::{ContextCompat, OptionExt, WrapErr};
+use color_eyre::eyre::{eyre, ContextCompat, OptionExt, WrapErr};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -60,78 +60,67 @@ pub struct ConnectionConfigBuilder {
     store_directory: Option<PathBuf>,
     /// Astarte Device SDK config options
     #[serde(rename = "mqtt", default)]
-    mqtt_config: MqttConfigBuilder,
+    mqtt_config: Option<MqttConfigBuilder>,
     /// Astarte Message Hub config options
     #[serde(rename = "grpc", default)]
-    grpc_config: GrpcConfigBuilder,
+    grpc_config: Option<GrpcConfigBuilder>,
 }
 
 impl ConnectionConfigBuilder {
-    /// Builder constructor
-    ///
-    /// Specify if the builder should use the Astarte Device SDK or the Astarte Message Hub
-    pub fn with_connection(astarte_connection: Option<AstarteConnection>) -> Self {
-        Self {
-            astarte_connection,
-            store_directory: None,
-            mqtt_config: MqttConfigBuilder::default(),
-            grpc_config: GrpcConfigBuilder::default(),
-        }
-    }
-
     /// Init astarte config from env var if they have been set
-    pub fn from_env(&mut self) {
-        // doesn't change it if it's been set from CLI
-        if self.astarte_connection.is_none() {
-            self.astarte_connection = env::var("ASTARTE_CONNECTION")
-                .ok()
-                .map(|s| AstarteConnection::from_str(&s, true))
-                .transpose()
-                .ok()
-                .unwrap_or_default();
+    ///
+    /// If an error is returned, it means that one or more environment variables have not been set
+    pub fn try_from_env(&mut self) -> eyre::Result<()> {
+        let con = env::var("ASTARTE_CONNECTION")
+            .map(|s| AstarteConnection::from_str(&s, true))?
+            .map_err(|err| eyre!(err))?;
+
+        self.store_directory = Some(env::var("ASTARTE_STORE_DIRECTORY").map(PathBuf::from)?);
+
+        match con {
+            AstarteConnection::Mqtt => {
+                self.astarte_connection = Some(con);
+
+                // update the mqtt config info
+                let device_id = env::var("ASTARTE_DEVICE_ID")?;
+                let realm = env::var("ASTARTE_REALM")?;
+                let pairing_url = env::var("ASTARTE_PAIRING_URL")?;
+                let astarte_ignore_ssl = env::var("ASTARTE_IGNORE_SSL_ERRORS")
+                    .map(|s| s.parse::<bool>().unwrap_or_default())?;
+                let credential = env::var("ASTARTE_CREDENTIALS_SECRET")
+                    .map(Credential::secret)
+                    .or_else(|_| env::var("ASTARTE_PAIRING_TOKEN").map(Credential::paring_token))?;
+
+                self.mqtt_config = Some(MqttConfigBuilder {
+                    device_id,
+                    realm,
+                    credential,
+                    pairing_url,
+                    astarte_ignore_ssl,
+                });
+            }
+            AstarteConnection::Grpc => {
+                self.astarte_connection = Some(con);
+
+                // update the mqtt config info
+                let endpoint = env::var("ASTARTE_MSGHUB_ENDPOINT")?;
+
+                self.grpc_config = Some(GrpcConfigBuilder { endpoint });
+            }
         }
 
-        self.store_directory = env::var("ASTARTE_STORE_DIRECTORY").ok().map(PathBuf::from);
-
-        // update the mqtt config info
-        let device_id = env::var("ASTARTE_DEVICE_ID").ok();
-        let realm = env::var("ASTARTE_REALM").ok();
-        let pairing_url = env::var("ASTARTE_PAIRING_URL").ok();
-        let astarte_ignore_ssl = env::var("ASTARTE_IGNORE_SSL_ERRORS")
-            .map(|s| s.parse().unwrap_or_default())
-            .ok();
-        let credential = env::var("ASTARTE_CREDENTIALS_SECRET")
-            .ok()
-            .map(Credential::secret)
-            .or_else(|| {
-                env::var("ASTARTE_PAIRING_TOKEN")
-                    .ok()
-                    .map(Credential::paring_token)
-            });
-
-        self.mqtt_config = MqttConfigBuilder {
-            device_id,
-            realm,
-            credential,
-            pairing_url,
-            astarte_ignore_ssl,
-        };
-
-        // update the mqtt config info
-        let endpoint = env::var("ASTARTE_MSGHUB_ENDPOINT").ok();
-
-        self.grpc_config = GrpcConfigBuilder { endpoint };
+        Ok(())
     }
 
     /// Update the missing config values taking them from a config.toml file
-    pub async fn update_with_toml(&mut self, path: impl AsRef<Path>) {
+    pub async fn from_toml(&mut self, path: impl AsRef<Path>) {
         match tokio::fs::read_to_string(&path).await {
             Ok(file) => {
                 // retrieve the astarte config information from the config.toml file
                 match toml::from_str::<ConfigToml>(&file) {
                     Ok(toml_cfg) => {
                         // update the configs
-                        self.merge(toml_cfg.astarte);
+                        *self = toml_cfg.astarte;
                     }
                     Err(err) => {
                         error!("error deserializing astarte cfg from toml: {err}");
@@ -147,41 +136,6 @@ impl ConnectionConfigBuilder {
         }
     }
 
-    /// Merge two configs
-    ///
-    /// Prioritize the already existing fields
-    fn merge(&mut self, other: ConnectionConfigBuilder) {
-        // doesn't change it if it's been set from CLI or from ENV
-        if self.astarte_connection.is_none() {
-            self.astarte_connection = other.astarte_connection;
-        }
-
-        self.store_directory = self.store_directory.take().or(other.store_directory);
-
-        // update the mqtt config info
-        let mqtt_config = &mut self.mqtt_config;
-
-        mqtt_config.device_id = mqtt_config.device_id.take().or(other.mqtt_config.device_id);
-        mqtt_config.realm = mqtt_config.realm.take().or(other.mqtt_config.realm);
-        mqtt_config.credential = mqtt_config
-            .credential
-            .take()
-            .or(other.mqtt_config.credential);
-        mqtt_config.pairing_url = mqtt_config
-            .pairing_url
-            .take()
-            .or(other.mqtt_config.pairing_url);
-        mqtt_config.astarte_ignore_ssl = mqtt_config
-            .astarte_ignore_ssl
-            .take()
-            .or(other.mqtt_config.astarte_ignore_ssl);
-
-        // update the grpc config info
-        let grpc_config = &mut self.grpc_config;
-
-        grpc_config.endpoint = grpc_config.endpoint.take().or(other.grpc_config.endpoint);
-    }
-
     /// Build a complete Astarte configuration or return an error
     pub async fn build(self) -> eyre::Result<(DeviceClient<SqliteStore>, SdkConnection)> {
         let astarte_connection = self
@@ -194,7 +148,8 @@ impl ConnectionConfigBuilder {
 
         match astarte_connection {
             AstarteConnection::Mqtt => {
-                let astarte_cfg = self.mqtt_config.build()?;
+                let astarte_cfg = self.mqtt_config.ok_or_eyre("invalid mqtt config")?;
+
                 debug!("parsed Astarte Device Sdk config: {:#?}", astarte_cfg);
 
                 // define MQTT configuration options
@@ -221,7 +176,8 @@ impl ConnectionConfigBuilder {
                 Ok((client, SdkConnection::Mqtt(connection)))
             }
             AstarteConnection::Grpc => {
-                let astarte_cfg = self.grpc_config.build()?;
+                let astarte_cfg = self.grpc_config.ok_or_eyre("invalid grpc config")?;
+
                 debug!("parsed Astarte Message Hub config: {:#?}", astarte_cfg);
 
                 let grpc_cfg =
@@ -251,59 +207,14 @@ pub enum SdkConnection {
 }
 
 /// Config for an MQTT connection to Astarte
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct MqttConfigBuilder {
     /// Device ID
-    device_id: Option<String>,
-    /// Astarte realm
-    realm: Option<String>,
-    /// Device credential
-    #[serde(flatten)]
-    credential: Option<Credential>,
-    /// Astarte pairing url
-    pairing_url: Option<String>,
-    /// Flag to ignore Astarte SSL errors
-    astarte_ignore_ssl: Option<bool>,
-}
-
-impl MqttConfigBuilder {
-    fn build(self) -> eyre::Result<MqttConfigChecked> {
-        Ok(MqttConfigChecked {
-            device_id: self.device_id.ok_or_eyre("missing device id")?,
-            realm: self.realm.ok_or_eyre("missing realm")?,
-            credential: self
-                .credential
-                .ok_or_eyre("missing either a credential secret or a pairing token")?,
-            pairing_url: self.pairing_url.ok_or_eyre("missing pairing url")?,
-            // if missing, set the ignore ssl error flat to false
-            astarte_ignore_ssl: self.astarte_ignore_ssl.unwrap_or_default(),
-        })
-    }
-}
-
-/// Config for a gRPC connection to an Astarte Message Hub instance
-#[derive(Debug, Default, Deserialize)]
-struct GrpcConfigBuilder {
-    /// The Endpoint of the Astarte Message Hub
-    endpoint: Option<String>,
-}
-
-impl GrpcConfigBuilder {
-    fn build(self) -> eyre::Result<GrpcConfigChecked> {
-        Ok(GrpcConfigChecked {
-            endpoint: self.endpoint.ok_or_eyre("missing endpoint")?,
-        })
-    }
-}
-
-/// Astarte device configuration
-#[derive(Debug)]
-struct MqttConfigChecked {
+    device_id: String,
     /// Astarte realm
     realm: String,
-    /// Device ID
-    device_id: String,
     /// Device credential
+    #[serde(flatten)]
     credential: Credential,
     /// Astarte pairing url
     pairing_url: String,
@@ -311,9 +222,9 @@ struct MqttConfigChecked {
     astarte_ignore_ssl: bool,
 }
 
-/// Astarte device configuration
-#[derive(Debug)]
-struct GrpcConfigChecked {
+/// Config for a gRPC connection to an Astarte Message Hub instance
+#[derive(Debug, Deserialize)]
+struct GrpcConfigBuilder {
     /// The Endpoint of the Astarte Message Hub
     endpoint: String,
 }
@@ -373,39 +284,10 @@ mod test {
     #[tokio::test]
     async fn test_connection_config_builder_build_failures() {
         // empty config builder cannot build successfully
-        let cfg_builder = ConnectionConfigBuilder::with_connection(None).build().await;
+        let cfg_builder = ConnectionConfigBuilder::default().build().await;
         assert!(cfg_builder.is_err());
 
-        // config builder with only the connection to astarte specified cannot build successfully
-        let con = AstarteConnection::Mqtt;
-        let cfg_builder = ConnectionConfigBuilder::with_connection(Some(con))
-            .build()
-            .await;
-        assert!(cfg_builder.is_err());
-
-        // check that only the astarte connection is added to the configuration
-        let mut cfg_builder = ConnectionConfigBuilder::with_connection(None);
-        let toml_str = r#"
-        [astarte]
-        connection = "mqtt"
-        "#;
-        let toml = toml::from_str::<ConfigToml>(toml_str).unwrap();
-        cfg_builder.merge(toml.astarte);
-        assert!(cfg_builder.astarte_connection.is_some());
-
-        // check that the astarte connection is not updated with toml info if it already contains a
-        // value
-        let con = AstarteConnection::Mqtt;
-        let mut cfg_builder = ConnectionConfigBuilder::with_connection(Some(con));
-        let toml_str = r#"
-        [astarte]
-        connection = "grpc"
-        "#;
-        let toml = toml::from_str::<ConfigToml>(toml_str).unwrap();
-        cfg_builder.merge(toml.astarte);
-        assert_eq!(cfg_builder.astarte_connection, Some(con));
-
-        // define store dire for the next tests
+        // define store dir for the next tests
         let mut tmp_dir = env::temp_dir();
         tmp_dir.push("stream-rust-test-tests");
         std::fs::create_dir_all(&tmp_dir).expect("failed to create store dir");
@@ -420,20 +302,7 @@ mod test {
         let res = cfg_builder.build().await;
         assert!(res.is_err());
 
-        // check that the store path is not updated with toml info if it already contains a value
-        let mut cfg_builder = ConnectionConfigBuilder {
-            astarte_connection: Some(AstarteConnection::Mqtt),
-            store_directory: Some(tmp_dir.clone()),
-            mqtt_config: Default::default(),
-            grpc_config: Default::default(),
-        };
-        let toml_str = r#"
-        [astarte]
-        connection = "grpc"
-        store_directory = "/tmp/stream-rust-test/store/"
-        "#;
-        let toml = toml::from_str::<ConfigToml>(toml_str).unwrap();
-        cfg_builder.merge(toml.astarte);
-        assert_eq!(cfg_builder.store_directory, Some(tmp_dir.clone()));
+        // TODO: add tests where ENV are not valid (or some are missing)           -> build fails
+        // TODO: add tests where config file is not found or the file is not valid -> build fails
     }
 }
