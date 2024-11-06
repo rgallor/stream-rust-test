@@ -7,8 +7,7 @@
 use astarte_device_sdk::EventLoop;
 use clap::Parser;
 use color_eyre::eyre;
-use std::env;
-use std::env::VarError;
+use color_eyre::eyre::WrapErr;
 use std::time::SystemTime;
 use stream_rust_test::astarte::{send_data, ConnectionConfigBuilder, SdkConnection};
 use stream_rust_test::cli::Config;
@@ -19,14 +18,10 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
 
 fn env_filter() -> eyre::Result<EnvFilter> {
-    let filter = env::var("RUST_LOG").or_else(|err| match err {
-        VarError::NotPresent => Ok("stream_rust_test=debug".to_string()),
-        err @ VarError::NotUnicode(_) => Err(err),
-    })?;
-
-    let env_filter = EnvFilter::try_new(filter)?;
-
-    Ok(env_filter)
+    EnvFilter::builder()
+        .with_default_directive("stream_rust_test=debug".parse()?)
+        .from_env()
+        .wrap_err("failed to set debug filter")
 }
 
 #[tokio::main]
