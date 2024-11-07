@@ -57,7 +57,9 @@ pub enum MathFunction {
     Saw,
     /// Rect
     Rect,
-    /// Sinc
+    /// Normalized Sinc
+    ///
+    /// sinc(x) = sin(PI*x) / (PI*x)
     Sinc,
     /// Random value
     Random,
@@ -122,16 +124,17 @@ fn sin(value: f64) -> f64 {
 }
 
 fn noise_sin(value: f64) -> f64 {
-    value.sin() + rand::random::<f64>() / f64::MAX * 0.2
+    value.sin() + random()
 }
 
 fn random_spikes_sin(value: f64) -> f64 {
-    if value.sin() + rand::random::<f64>() / f64::MAX * 0.1 + rand::random::<f64>() / f64::MAX * 0.1
-        > 0.999
-    {
-        100.0
+    let v = noise_sin(value);
+
+    //  spike(x) = 1, if 0 ≤ x < 1, 0 elsewhere
+    if (0.0..0.999).contains(&random()) {
+        v
     } else {
-        0.0
+        v + 100.0
     }
 }
 
@@ -156,22 +159,22 @@ fn rect(value: f64) -> f64 {
     }
 }
 
-/// Normalized sinc function: sin(PI*x) / (PI*x)
 fn sinc(value: f64) -> f64 {
-    if value == 0.0 {
+    let t = (value % (20.0 * PI)) - 10.0 * PI;
+
+    if t == 0.0 {
         1.0
     } else {
-        let t = value * PI;
         t.sin() / t
     }
 }
 
 fn random() -> f64 {
-    rand::random::<f64>() / f64::MAX
+    rand::random::<f64>()
 }
 
 fn random_interval() -> f64 {
-    (rand::random::<f64>() % 600.0) * 1000.0 + (rand::random::<f64>() % 1000.0)
+    (random() * 1000.0) % 600.0 + random()
 }
 
 fn default(value: f64) -> f64 {

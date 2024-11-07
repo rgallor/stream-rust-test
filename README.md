@@ -11,15 +11,13 @@ SPDX-License-Identifier: Apache-2.0
 
 Astarte Rust SDK based data stream test.
 
-Requirements
-============
+## Requirements
 
 * Astarte Device Rust SDK
 
-Getting started
-===============
+## Getting started
 
-## Choosing a Device ID
+### Choosing a Device ID
 
 A Base64 url-encoded uuid should be used, you can use [astartectl](https://github.com/astarte-platform/astartectl#installation) to generate one:
 
@@ -83,7 +81,7 @@ Since the application can be configured with a CLI, when [running the applicatio
 type of connection (`mqtt` or `grpc`) and the path to the `config.toml` file with the `--astarte_connection` (`-c`) and
 `--astarte_config_path` options, respectively.
 
-## Build and run
+### Build and run
 
 Build the application using following commands:
 ```sh
