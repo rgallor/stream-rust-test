@@ -86,22 +86,6 @@ impl Display for MathFunction {
     }
 }
 
-impl From<String> for MathFunction {
-    fn from(value: String) -> Self {
-        match value.as_str() {
-            "sin" => Self::Sin,
-            "noise-sin" => Self::NoiseSin,
-            "random-spikes-sin" => Self::RandomSpikesSin,
-            "const" => Self::Const,
-            "saw" => Self::Saw,
-            "rect" => Self::Rect,
-            "sinc" => Self::Sinc,
-            "random" => Self::Random,
-            _ => Self::Default,
-        }
-    }
-}
-
 impl MathFunction {
     /// Use math functions to compute an output value given a certain input
     pub fn compute(&self, value: f64) -> f64 {
