@@ -19,6 +19,8 @@ use tracing::debug;
 ///to generate samples to send to Astarte
 #[derive(Clone, Debug)]
 pub struct StreamConfig {
+    /// Stream state
+    pub(crate) state: StreamState,
     /// Astarte interface specifying where data must be sent
     pub(crate) interface: String,
     /// Math function
@@ -37,6 +39,7 @@ impl StreamConfig {
         let initial_value = now.elapsed().map(|t| t.as_secs_f64())?;
 
         Ok(Self {
+            state: StreamState::On,
             interface: cli_cfg.interface_datastream_do,
             scale: cli_cfg.scale,
             math_function: cli_cfg.math_function,
@@ -46,7 +49,7 @@ impl StreamConfig {
     }
 
     /// Update the stream internal configuration
-    pub(crate) fn update_cfg(&mut self, update: StreamConfigUpdate) {
+    pub(crate) async fn update_cfg(&mut self, update: StreamConfigUpdate) {
         let StreamConfigUpdate { sensor_id, update } = update;
 
         // TODO: at the moment the sensor_id is only used for debug info. If it is not necessary it
@@ -54,19 +57,31 @@ impl StreamConfig {
         //  it should be introduced ad a CLI parameter).
 
         match update {
-            MathConfigUpdate::Function(value) => {
+            ConfigUpdate::State => {
+                debug!("toggle stream state for sensor {sensor_id}");
+                self.toggle_state();
+            }
+            ConfigUpdate::Function(value) => {
                 debug!("update stream math function config with {value} for sensor {sensor_id}");
                 self.math_function = value;
             }
-            MathConfigUpdate::Interval(value) => {
+            ConfigUpdate::Interval(value) => {
                 debug!("update stream interval config with {value} for sensor {sensor_id}");
                 self.interval = value;
             }
-            MathConfigUpdate::Scale(value) => {
+            ConfigUpdate::Scale(value) => {
                 debug!("update stream scale config with {value} for sensor {sensor_id}");
                 self.scale = value;
             }
         }
+    }
+
+    fn toggle_state(&mut self) {
+        self.state.toggle();
+    }
+
+    pub(crate) fn is_off(&mut self) -> bool {
+        self.state.is_off()
     }
 
     /// retrieve a reference to the Astarte interface
@@ -85,34 +100,69 @@ impl StreamConfig {
     }
 }
 
+/// Represent if the stream is running or paused
+#[derive(Clone, Debug, Default)]
+pub(crate) enum StreamState {
+    #[default]
+    /// The stream is sending samples
+    On,
+    /// The stream is stopped
+    Off,
+}
+
+impl StreamState {
+    pub(crate) fn toggle(&mut self) {
+        match self {
+            StreamState::On => *self = StreamState::Off,
+            StreamState::Off => *self = StreamState::On,
+        }
+    }
+
+    pub(crate) fn is_off(&self) -> bool {
+        matches!(*self, StreamState::Off)
+    }
+}
+
 /// Stream configuration options
 #[derive(Clone, Debug)]
 pub struct StreamConfigUpdate {
     /// Sensor id
     pub(crate) sensor_id: String,
     /// math config update
-    pub(crate) update: MathConfigUpdate,
+    pub(crate) update: ConfigUpdate,
 }
 
-/// Math configuration options
+/// Configuration options to update
 #[derive(Clone, Debug)]
-pub enum MathConfigUpdate {
+pub enum ConfigUpdate {
     /// New math function
     Function(MathFunction),
     /// New interval
     Interval(u64),
     /// New scale
     Scale(f64),
+    /// Toggle stream state
+    State,
 }
 
 impl StreamConfigUpdate {
+    pub(crate) fn toggle_state<T>(sensor_id: T) -> Self
+    where
+        T: Into<String>,
+    {
+        Self {
+            sensor_id: sensor_id.into(),
+            update: ConfigUpdate::State,
+        }
+    }
+
     pub(crate) fn function<T>(sensor_id: T, function: MathFunction) -> Self
     where
         T: Into<String>,
     {
         Self {
             sensor_id: sensor_id.into(),
-            update: MathConfigUpdate::Function(function),
+            update: ConfigUpdate::Function(function),
         }
     }
 
@@ -122,7 +172,7 @@ impl StreamConfigUpdate {
     {
         Self {
             sensor_id: sensor_id.into(),
-            update: MathConfigUpdate::Interval(interval),
+            update: ConfigUpdate::Interval(interval),
         }
     }
 
@@ -132,7 +182,7 @@ impl StreamConfigUpdate {
     {
         Self {
             sensor_id: sensor_id.into(),
-            update: MathConfigUpdate::Scale(scale),
+            update: ConfigUpdate::Scale(scale),
         }
     }
 }

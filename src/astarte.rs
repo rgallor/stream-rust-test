@@ -268,6 +268,13 @@ pub async fn send_data(
         // config is received, hence modify it
         select! {
             _ = tokio::time::sleep(std::time::Duration::from_millis(stream_cfg.interval)) => {
+                // check the stream state to verify if it's running or if it is stopped
+                // TODO: use a Notify mechanism to avoid looping also when the stream is off
+                if stream_cfg.is_off() {
+                    debug!("stream is off, stop sending data");
+                    continue;
+                }
+
                 debug!(
                     "sending data to Astarte with {} math function and scale {}",
                     stream_cfg.math_function, stream_cfg.scale
@@ -296,7 +303,7 @@ pub async fn send_data(
                 };
 
                 info!("updating stream config");
-                stream_cfg.update_cfg(new_cfg)
+                stream_cfg.update_cfg(new_cfg).await
             }
         }
     }
@@ -317,6 +324,10 @@ pub async fn receive_data(
                     let sensor_id = iter.next().ok_or_eyre("missing sensor id")?;
 
                     match iter.next() {
+                        Some("toggle") => {
+                            debug!("Received new toggle datastream for sensor {sensor_id}.");
+                            tx.send(StreamConfigUpdate::toggle_state(sensor_id)).await?;
+                        }
                         Some("function") => {
                             let function = String::try_from(var)?.into();
                             debug!(
