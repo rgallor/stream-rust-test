@@ -21,9 +21,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use std::{env, io};
 use tracing::{debug, error};
-
-/// Stream Rust test node identifier
-const STREAM_RUST_TEST_NODE_UUID: uuid::Uuid = uuid::uuid!("d72a6187-7cf1-44cc-87e8-e991936166dc");
+use uuid::Uuid;
 
 const DEVICE_DATASTREAM: &str =
     include_str!("../interfaces/org.astarte-platform.genericsensors.Values.json");
@@ -103,9 +101,10 @@ impl ConnectionConfigBuilder {
                 self.astarte_connection = Some(con);
 
                 let endpoint = env::var("ASTARTE_MSGHUB_ENDPOINT")?;
+                let node_id = env::var("ASTARTE_MSGHUB_NODE_ID")?.parse::<Uuid>()?;
 
                 // update the grpc config info
-                self.grpc_config = Some(GrpcConfigBuilder { endpoint });
+                self.grpc_config = Some(GrpcConfigBuilder { node_id, endpoint });
             }
         }
 
@@ -162,10 +161,10 @@ impl ConnectionConfigBuilder {
                 Ok((client, SdkConnection::Mqtt(connection)))
             }
             AstarteConnection::Grpc => {
-                let grpc_endpoint = self.grpc_config.ok_or_eyre("invalid grpc config")?.endpoint;
-
-                let grpc_cfg = GrpcConfig::from_url(STREAM_RUST_TEST_NODE_UUID, grpc_endpoint)
-                    .wrap_err("failed to create a gRPC config")?;
+                let grpc_cfg = self
+                    .grpc_config
+                    .ok_or_eyre("invalid grpc config")?
+                    .build()?;
 
                 debug!("parsed Astarte Message Hub config: {:#?}", grpc_cfg);
 
@@ -224,8 +223,16 @@ impl From<MqttConfigBuilder> for MqttConfig {
 /// Config for a gRPC connection to an Astarte Message Hub instance
 #[derive(Debug, Default, Deserialize)]
 struct GrpcConfigBuilder {
+    /// Stream Rust test UUID
+    node_id: Uuid,
     /// The Endpoint of the Astarte Message Hub
     endpoint: String,
+}
+
+impl GrpcConfigBuilder {
+    fn build(self) -> eyre::Result<GrpcConfig> {
+        GrpcConfig::from_url(self.node_id, self.endpoint).wrap_err("failed to create a gRPC config")
+    }
 }
 
 /// Send data to Astarte

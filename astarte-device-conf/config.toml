@@ -27,3 +27,4 @@ astarte_ignore_ssl = false
 #
 #[astarte.grpc]
 #endpoint = "http://[::1]:50051"
+#node_id = "ASTARTE_MSGHUB_NODE_ID_HERE"
