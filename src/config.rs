@@ -11,7 +11,7 @@ use crate::math::MathFunction;
 use color_eyre::eyre;
 use std::f64::consts::PI;
 use std::time::SystemTime;
-use tracing::debug;
+use tracing::{debug, instrument};
 
 /// Stream configuration
 ///
@@ -49,6 +49,7 @@ impl StreamConfig {
     }
 
     /// Update the stream internal configuration
+    #[instrument(skip_all)]
     pub(crate) async fn update_cfg(&mut self, update: StreamConfigUpdate) {
         let StreamConfigUpdate { sensor_id, update } = update;
 

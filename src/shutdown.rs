@@ -8,10 +8,11 @@
 
 use color_eyre::eyre;
 use color_eyre::eyre::WrapErr;
-use tracing::error;
+use tracing::{error, instrument};
 
 #[cfg(unix)]
 /// Shut down the application in case a SIGTERM or SIGINT is received.
+#[instrument(skip_all)]
 pub fn shutdown() -> eyre::Result<impl std::future::Future<Output = ()>> {
     use futures::FutureExt;
     use tokio::signal::unix::SignalKind;
@@ -40,6 +41,7 @@ pub fn shutdown() -> eyre::Result<impl std::future::Future<Output = ()>> {
 
 #[cfg(not(unix))]
 /// Shut down the application in case a SIGINT is received.
+#[instrument(skip_all)]
 pub fn shutdown() -> eyre::Result<impl std::future::Future<Output = ()>> {
     use futures::FutureExt;
 
