@@ -59,7 +59,7 @@ impl StreamConfig {
         match update {
             ConfigUpdate::State => {
                 debug!("toggle stream state for sensor {sensor_id}");
-                self.toggle_state();
+                self.state.toggle();
             }
             ConfigUpdate::Function(value) => {
                 debug!("update stream math function config with {value} for sensor {sensor_id}");
@@ -76,12 +76,8 @@ impl StreamConfig {
         }
     }
 
-    fn toggle_state(&mut self) {
-        self.state.toggle();
-    }
-
-    pub(crate) fn is_off(&mut self) -> bool {
-        self.state.is_off()
+    pub(crate) fn is_on(&self) -> bool {
+        self.state.is_on()
     }
 
     /// retrieve a reference to the Astarte interface
@@ -118,8 +114,8 @@ impl StreamState {
         }
     }
 
-    pub(crate) fn is_off(&self) -> bool {
-        matches!(*self, StreamState::Off)
+    pub(crate) fn is_on(&self) -> bool {
+        matches!(*self, StreamState::On)
     }
 }
 
