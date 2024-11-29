@@ -18,7 +18,7 @@ use serde::Deserialize;
 use std::env::VarError;
 use std::path::{Path, PathBuf};
 use std::{env, io};
-use tracing::{debug, error};
+use tracing::{debug, error, instrument};
 use uuid::{uuid, Uuid};
 
 const DEVICE_DATASTREAM: &str =
@@ -76,6 +76,7 @@ impl ConnectionConfigBuilder {
     /// Init astarte config from env var if they have been set
     ///
     /// If an error is returned, it means that one or more environment variables have not been set
+    #[instrument(skip_all)]
     pub fn try_from_env(&mut self) -> eyre::Result<()> {
         let con = env::var("ASTARTE_CONNECTION")
             .map(|s| AstarteConnection::from_str(&s, true))?
@@ -128,6 +129,7 @@ impl ConnectionConfigBuilder {
     }
 
     /// Update the missing config values taking them from a config.toml file
+    #[instrument(skip_all)]
     pub async fn from_toml(&mut self, path: impl AsRef<Path>) {
         match tokio::fs::read_to_string(&path).await {
             Ok(file) => {
@@ -152,6 +154,7 @@ impl ConnectionConfigBuilder {
     }
 
     /// Build a complete Astarte configuration or return an error
+    #[instrument(skip_all)]
     pub async fn build(self) -> eyre::Result<(DeviceClient<SqliteStore>, SdkConnection)> {
         let astarte_connection = self
             .astarte_connection

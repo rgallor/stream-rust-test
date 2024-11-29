@@ -14,7 +14,7 @@ use color_eyre::eyre;
 use color_eyre::eyre::OptionExt;
 use std::time::SystemTime;
 use tokio::select;
-use tracing::{debug, error};
+use tracing::{debug, error, instrument};
 
 use crate::cli::Config;
 use crate::config::{StreamConfig, StreamConfigUpdate};
@@ -45,6 +45,7 @@ impl StreamManager {
     }
 
     /// Handle sending data to Astarte and the reception of new stream configuration from Astarte
+    #[instrument(skip_all)]
     pub async fn handle(mut self, client: DeviceClient<SqliteStore>) -> eyre::Result<()> {
         loop {
             select! {
@@ -72,6 +73,7 @@ impl StreamManager {
     }
 
     /// Send data to Astarte
+    #[instrument(skip_all)]
     async fn send_data(&mut self, client: &DeviceClient<SqliteStore>) -> eyre::Result<()> {
         // Send data to Astarte
         let value = self.stream_cfg.next_value();
@@ -89,6 +91,8 @@ impl StreamManager {
         Ok(())
     }
 
+    /// Receive new stream configuration from Astarte.
+    #[instrument(skip_all)]
     async fn receive_data(&mut self, event: DeviceEvent) -> eyre::Result<()> {
         if let astarte_device_sdk::Value::Individual(var) = event.data {
             // split the mapping path, which looks like "/foo/bar"
