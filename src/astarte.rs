@@ -6,13 +6,11 @@
 
 //! Astarte builder and configuration structures.
 
-use crate::config::{StreamConfig, StreamConfigUpdate};
 use astarte_device_sdk::builder::{DeviceBuilder, DeviceSdkBuild};
-use astarte_device_sdk::client::RecvError;
 use astarte_device_sdk::store::SqliteStore;
 use astarte_device_sdk::transport::grpc::{Grpc, GrpcConfig};
 use astarte_device_sdk::transport::mqtt::{Credential, Mqtt, MqttConfig};
-use astarte_device_sdk::{Client, DeviceClient, DeviceConnection};
+use astarte_device_sdk::{DeviceClient, DeviceConnection};
 use clap::ValueEnum;
 use color_eyre::eyre;
 use color_eyre::eyre::{bail, eyre, OptionExt, WrapErr};
@@ -20,9 +18,7 @@ use serde::Deserialize;
 use std::env::VarError;
 use std::path::{Path, PathBuf};
 use std::{env, io};
-use tokio::select;
-use tokio::sync::mpsc::{Receiver, Sender};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error};
 use uuid::{uuid, Uuid};
 
 const DEVICE_DATASTREAM: &str =
@@ -254,112 +250,6 @@ struct GrpcConfigBuilder {
 impl GrpcConfigBuilder {
     fn build(self) -> eyre::Result<GrpcConfig> {
         GrpcConfig::from_url(self.node_id, self.endpoint).wrap_err("failed to create a gRPC config")
-    }
-}
-
-/// Send data to Astarte
-pub async fn send_data(
-    client: DeviceClient<SqliteStore>,
-    mut rx: Receiver<StreamConfigUpdate>,
-    mut stream_cfg: StreamConfig,
-) -> eyre::Result<()> {
-    loop {
-        // wait until an interval has elapsed, thus data must be sent to Astarte, or a new stream
-        // config is received, hence modify it
-        select! {
-            _ = tokio::time::sleep(std::time::Duration::from_millis(stream_cfg.interval)) => {
-                // check the stream state to verify if it's running or if it is stopped
-                // TODO: use a Notify mechanism to avoid looping also when the stream is off
-                if stream_cfg.is_off() {
-                    debug!("stream is off, stop sending data");
-                    continue;
-                }
-
-                debug!(
-                    "sending data to Astarte with {} math function and scale {}",
-                    stream_cfg.math_function, stream_cfg.scale
-                );
-
-                // Send data to Astarte
-                let value = stream_cfg.next_value();
-
-                // TODO: here the sensor_id is static. Should we introduce it as a CLI argument or
-                //  another way to receive it "dynamically"?
-
-                client
-                    .send(stream_cfg.interface(), "/sensor_id_123/value", value)
-                    .await?;
-
-                debug!("data sent on endpoint /sensor_id_123/value, content: {value}");
-
-                // update the value upon which the data to be sent to Astarte at the next iteration
-                // will be computed
-                stream_cfg.update_value();
-            }
-            new_cfg = rx.recv() => {
-                let Some(new_cfg) = new_cfg else {
-                    warn!("channel closed, cannot update stream config anymore");
-                    return Ok(());
-                };
-
-                info!("updating stream config");
-                stream_cfg.update_cfg(new_cfg).await
-            }
-        }
-    }
-}
-
-/// Receive data from Astarte
-pub async fn receive_data(
-    client: DeviceClient<SqliteStore>,
-    tx: Sender<StreamConfigUpdate>,
-) -> eyre::Result<()> {
-    loop {
-        match client.recv().await {
-            Ok(data) => {
-                if let astarte_device_sdk::Value::Individual(var) = data.data {
-                    // split the mapping path, which looks like "/foo/bar"
-                    let mut iter = data.path.splitn(3, '/').skip(1);
-
-                    let sensor_id = iter.next().ok_or_eyre("missing sensor id")?;
-
-                    match iter.next() {
-                        Some("toggle") => {
-                            debug!("Received new toggle datastream for sensor {sensor_id}.");
-                            tx.send(StreamConfigUpdate::toggle_state(sensor_id)).await?;
-                        }
-                        Some("function") => {
-                            let function = String::try_from(var)?.into();
-                            debug!(
-                                "Received new function datastream for sensor {sensor_id}. sensor function is now {function}"
-                            );
-                            tx.send(StreamConfigUpdate::function(sensor_id, function))
-                                .await?;
-                        }
-                        Some("interval") => {
-                            let interval = i64::try_from(var)?.try_into()?;
-                            debug!(
-                                "Received new interval datastream for sensor {sensor_id}. sensor interval is now {interval}"
-                            );
-                            tx.send(StreamConfigUpdate::interval(sensor_id, interval))
-                                .await?;
-                        }
-                        Some("scale") => {
-                            let scale = var.try_into()?;
-                            debug!(
-                                "Received new scale datastream for sensor {sensor_id}. sensor scale is now {scale}"
-                            );
-                            tx.send(StreamConfigUpdate::scale(sensor_id, scale)).await?;
-                        }
-                        item => {
-                            error!("unrecognized {item:?}")
-                        }
-                    }
-                }
-            }
-            Err(RecvError::Disconnected) => return Ok(()),
-            Err(err) => error!(%err),
-        }
     }
 }
 
