@@ -21,10 +21,12 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use std::{env, io};
 use tracing::{debug, error};
-use uuid::Uuid;
+use uuid::{uuid, Uuid};
 
 const DEVICE_DATASTREAM: &str =
     include_str!("../interfaces/org.astarte-platform.genericsensors.Values.json");
+
+const DEFAULT_STREAM_NODE_ID: Uuid = uuid!("d72a6187-7cf1-44cc-87e8-e991936166dc");
 
 /// Specify which Astarte library use to connect to Astarte
 #[derive(
@@ -101,7 +103,9 @@ impl ConnectionConfigBuilder {
                 self.astarte_connection = Some(con);
 
                 let endpoint = env::var("ASTARTE_MSGHUB_ENDPOINT")?;
-                let node_id = env::var("ASTARTE_MSGHUB_NODE_ID")?.parse::<Uuid>()?;
+                let node_id = env::var("ASTARTE_MSGHUB_NODE_ID")
+                    .map(|s| s.parse::<Uuid>().unwrap_or(DEFAULT_STREAM_NODE_ID))
+                    .unwrap_or(DEFAULT_STREAM_NODE_ID);
 
                 // update the grpc config info
                 self.grpc_config = Some(GrpcConfigBuilder { node_id, endpoint });
