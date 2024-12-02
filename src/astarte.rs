@@ -15,18 +15,24 @@ use astarte_device_sdk::transport::mqtt::{Credential, Mqtt, MqttConfig};
 use astarte_device_sdk::{Client, DeviceClient, DeviceConnection};
 use clap::ValueEnum;
 use color_eyre::eyre;
-use color_eyre::eyre::{eyre, OptionExt, WrapErr};
+use color_eyre::eyre::{bail, eyre, OptionExt, WrapErr};
 use serde::Deserialize;
+use std::env::VarError;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use std::{env, io};
 use tracing::{debug, error};
-
-/// Stream Rust test node identifier
-const STREAM_RUST_TEST_NODE_UUID: uuid::Uuid = uuid::uuid!("d72a6187-7cf1-44cc-87e8-e991936166dc");
+use uuid::{uuid, Uuid};
 
 const DEVICE_DATASTREAM: &str =
     include_str!("../interfaces/org.astarte-platform.genericsensors.Values.json");
+
+const DEFAULT_STREAM_NODE_ID: Uuid = uuid!("d72a6187-7cf1-44cc-87e8-e991936166dc");
+
+/// This function is necessary for serde deserialization
+fn default_stream_node_id() -> Uuid {
+    DEFAULT_STREAM_NODE_ID
+}
 
 /// Specify which Astarte library use to connect to Astarte
 #[derive(
@@ -104,8 +110,18 @@ impl ConnectionConfigBuilder {
 
                 let endpoint = env::var("ASTARTE_MSGHUB_ENDPOINT")?;
 
+                let node_id = match env::var("ASTARTE_MSGHUB_NODE_ID") {
+                    Ok(uuid) => {
+                        Uuid::parse_str(&uuid).wrap_err("invalid ASTARTE_MSGHUB_NODE_ID {uuid}")?
+                    }
+                    Err(VarError::NotPresent) => DEFAULT_STREAM_NODE_ID,
+                    Err(VarError::NotUnicode(s)) => {
+                        bail!("non unicode ASTARTE_MSGHUB_NODE_ID {s:?}")
+                    }
+                };
+
                 // update the grpc config info
-                self.grpc_config = Some(GrpcConfigBuilder { endpoint });
+                self.grpc_config = Some(GrpcConfigBuilder { node_id, endpoint });
             }
         }
 
@@ -162,10 +178,10 @@ impl ConnectionConfigBuilder {
                 Ok((client, SdkConnection::Mqtt(connection)))
             }
             AstarteConnection::Grpc => {
-                let grpc_endpoint = self.grpc_config.ok_or_eyre("invalid grpc config")?.endpoint;
-
-                let grpc_cfg = GrpcConfig::from_url(STREAM_RUST_TEST_NODE_UUID, grpc_endpoint)
-                    .wrap_err("failed to create a gRPC config")?;
+                let grpc_cfg = self
+                    .grpc_config
+                    .ok_or_eyre("invalid grpc config")?
+                    .build()?;
 
                 debug!("parsed Astarte Message Hub config: {:#?}", grpc_cfg);
 
@@ -224,8 +240,17 @@ impl From<MqttConfigBuilder> for MqttConfig {
 /// Config for a gRPC connection to an Astarte Message Hub instance
 #[derive(Debug, Default, Deserialize)]
 struct GrpcConfigBuilder {
+    #[serde(default = "default_stream_node_id")]
+    /// Stream Rust test UUID
+    node_id: Uuid,
     /// The Endpoint of the Astarte Message Hub
     endpoint: String,
+}
+
+impl GrpcConfigBuilder {
+    fn build(self) -> eyre::Result<GrpcConfig> {
+        GrpcConfig::from_url(self.node_id, self.endpoint).wrap_err("failed to create a gRPC config")
+    }
 }
 
 /// Send data to Astarte

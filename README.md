@@ -42,6 +42,7 @@ If you want to use environment variables to set up the application, you can set 
 - `ASTARTE_STORE_DIRECTORY`: path to the directory where to store data (e.g., in case of Astarte properties)
 - `ASTARTE_IGNORE_SSL_ERRORS`: boolean stating if SSL errors should be ignored (default: false)
 - `ASTARTE_MSGHUB_ENDPOINT`: endpoint of the Astarte Message Hub instance
+- `ASTARTE_MSGHUB_NODE_ID`: UUID of the Node to connect to the Astarte Message Hub
 
 Instead, if you want to use a configuration file, you must specify its location by using the `ASTARTE_CONFIG_PATH`
 environment variable. The `config.toml` file must contain the following information:
@@ -62,6 +63,7 @@ astarte_ignore_ssl = false
 # gRPC connection to the Astarte Message Hub
 [astarte.grpc]
 endpoint = "http://[::1]:50051"
+#node_id = "ASTARTE_MSGHUB_NODE_ID_HERE"
 ```
 
 NOTE: only one of the `[astarte.mqtt]` or `[astarte.grpc]` sections should be specified in the file.
@@ -76,6 +78,7 @@ A detailed description of the fields is depicted below:
   present, the credential secret will be used.
 - `astarte_ignore_ssl`: a flag stating if SSL errors should be ignored when connecting to Astarte.
 - `endpoint`: the endpoint where the Astarte Message Hub instance is listening for new connections.
+- `node_id`: UUID of the Node to connect to the Astarte Message Hub (optional).
 
 Since the application can be configured with a CLI, when [running the application](#build-and-run) you can specify the
 type of connection (`mqtt` or `grpc`) and the path to the `config.toml` file with the `--astarte_connection` (`-c`) and
