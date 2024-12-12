@@ -136,12 +136,10 @@ To run the container with your configuration file:
 1. Ensure you have defined your astarte configuration file `config.toml`
 2. Run the Docker container, mounting the configuration file:
    ```sh
-   docker run -v /path/to/your/config.toml:<MOUNT_TO_THIS_PATH> -e ASTARTE_CONFIG_PATH="<MOUNT_TO_THIS_PATH>" stream-rust-test:latest
+   docker run -v /path/to/your/config.toml:/etc/stream-rust-test/ stream-rust-test:latest
    ```
 
 Replace `/path/to/your/config.toml` with the actual path to your configuration file.
-
-Note: `MOUNT_TO_THIS_PATH` must be an absolute path.
 
 #### Run the container with environment variables
 

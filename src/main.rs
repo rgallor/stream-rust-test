@@ -52,6 +52,13 @@ async fn main() -> eyre::Result<()> {
     if let Err(err) = astarte_cfg_builder.try_from_env() {
         warn!("failed to retrieve Astarte connection config from ENV: {err}");
 
+        #[cfg(feature = "docker")]
+        {
+            let path = std::path::PathBuf::from("/etc/stream-rust-test/config.toml");
+            astarte_cfg_builder.from_toml(path).await;
+        }
+
+        #[cfg(not(feature = "docker"))]
         if let Some(path) = &cli_cfg.astarte_config_path {
             let path = path.join("config.toml");
             info!("retrieve Astarte connection config from {}", path.display());
