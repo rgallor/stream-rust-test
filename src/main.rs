@@ -52,12 +52,32 @@ async fn main() -> eyre::Result<()> {
     if let Err(err) = astarte_cfg_builder.try_from_env() {
         warn!("failed to retrieve Astarte connection config from ENV: {err}");
 
-        if let Some(path) = &cli_cfg.astarte_config_path {
-            let path = path.join("config.toml");
-            info!("retrieve Astarte connection config from {}", path.display());
+        // default path where to search for config.toml
+        let path_str = "/etc/stream-rust-test".to_string();
 
-            astarte_cfg_builder.from_toml(path).await;
-        }
+        #[cfg(not(feature = "docker"))]
+        // if we are not using containers, we try to retrieve the config file from a specific location
+        // set by the user in the ASTARTE_CONFIG_PATH environment variable
+        let path_str = match std::env::var("ASTARTE_CONFIG_PATH") {
+            Ok(path) => {
+                debug!("retrieve Astarte connection config from path: {path}");
+                path
+            }
+            Err(std::env::VarError::NotPresent) => {
+                debug!(
+                    "retrieve Astarte connection config from default path (/etc/stream-rust-test)"
+                );
+                path_str
+            }
+            Err(err) => {
+                error!("failed to retrieve Astarte connection config: {err}");
+                return Err(color_eyre::Report::new(err));
+            }
+        };
+
+        let path = std::path::PathBuf::from(path_str).join("config.toml");
+
+        astarte_cfg_builder.from_toml(path).await;
     };
 
     let (client, connection) = astarte_cfg_builder.build().await?;
@@ -90,17 +110,17 @@ async fn main() -> eyre::Result<()> {
                 };
 
                 match res {
-                        Ok(Ok(())) => {}
-                        Err(err) if err.is_cancelled() => {}
-                        Err(err) => {
-                            error!(error = %err, "Task panicked");
-                            return Err(err.into());
-                        }
-                        Ok(Err(err)) => {
-                            error!(error = %err, "Task returned an error");
-                            return Err(err);
-                        }
+                    Ok(Ok(())) => {}
+                    Err(err) if err.is_cancelled() => {}
+                    Err(err) => {
+                        error!(error = %err, "Task panicked");
+                        return Err(err.into());
                     }
+                    Ok(Err(err)) => {
+                        error!(error = %err, "Task returned an error");
+                        return Err(err);
+                    }
+                }
             }
         }
     }
