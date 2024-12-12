@@ -8,18 +8,11 @@
 
 use crate::math::MathFunction;
 use clap::Parser;
-use std::path::PathBuf;
 
 /// Configuration for the values to be sent to Astarte
 #[derive(Debug, Clone, Parser)]
 #[clap(version, about)]
 pub struct Config {
-    /// Path to the directory containing the Astarte configuration file config.toml
-    ///
-    /// First, the Astarte configuration is taken from ENV vars, then from the config.toml if the
-    /// path has been specified
-    #[clap(short, long, env = "ASTARTE_CONFIG_PATH")]
-    pub astarte_config_path: Option<PathBuf>,
     /// Math function the device will use to send data to Astarte
     #[clap(short, long, default_value = "default", env = "MATH_FUNCTION")]
     pub math_function: MathFunction,

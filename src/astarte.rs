@@ -111,9 +111,8 @@ impl ConnectionConfigBuilder {
                 let endpoint = env::var("ASTARTE_MSGHUB_ENDPOINT")?;
 
                 let node_id = match env::var("ASTARTE_MSGHUB_NODE_ID") {
-                    Ok(uuid) => {
-                        Uuid::parse_str(&uuid).wrap_err("invalid ASTARTE_MSGHUB_NODE_ID {uuid}")?
-                    }
+                    Ok(uuid) => Uuid::parse_str(&uuid)
+                        .wrap_err(format!("invalid ASTARTE_MSGHUB_NODE_ID {uuid}"))?,
                     Err(VarError::NotPresent) => DEFAULT_STREAM_NODE_ID,
                     Err(VarError::NotUnicode(s)) => {
                         bail!("non unicode ASTARTE_MSGHUB_NODE_ID {s:?}")
