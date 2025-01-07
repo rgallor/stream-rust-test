@@ -35,6 +35,8 @@ jobs:
         toolchain: [stable, beta]
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get -y install libsqlite3-dev libssl-dev
       - name: Install ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@master
         with:
@@ -49,6 +51,8 @@ jobs:
     name: nightly / doc
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get -y install libsqlite3-dev libssl-dev
       - name: Install nightly
         uses: dtolnay/rust-toolchain@nightly
       - name: Install sccache-cache
@@ -62,6 +66,8 @@ jobs:
     name: ubuntu / stable / features
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get -y install libsqlite3-dev libssl-dev
       - name: Install stable
         uses: dtolnay/rust-toolchain@stable
       - name: Install sccache-cache
@@ -78,6 +84,8 @@ jobs:
     name: ubuntu / ${{ matrix.msrv }}
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get -y install libsqlite3-dev libssl-dev
       - name: Install ${{ matrix.msrv }}
         uses: dtolnay/rust-toolchain@master
         with:
