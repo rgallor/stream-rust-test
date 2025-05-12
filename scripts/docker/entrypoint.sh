@@ -6,4 +6,4 @@
 
 set -exu
 
-exec stream-rust-test
+exec stream-rust-test "$@"

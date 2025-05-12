@@ -7,12 +7,12 @@
 //! Define shutdown futures to stop the docker container with CTRL+C command
 
 use color_eyre::eyre;
-use color_eyre::eyre::WrapErr;
 use tracing::error;
 
 #[cfg(unix)]
 /// Shut down the application in case a SIGTERM or SIGINT is received.
 pub fn shutdown() -> eyre::Result<impl std::future::Future<Output = ()>> {
+    use color_eyre::eyre::WrapErr;
     use futures::FutureExt;
     use tokio::signal::unix::SignalKind;
 

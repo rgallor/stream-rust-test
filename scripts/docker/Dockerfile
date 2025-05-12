@@ -19,7 +19,7 @@ COPY scripts/docker/entrypoint.sh /entrypoint.sh
 
 COPY --from=build /stream-rust-test/target/release/stream-rust-test /usr/bin/
 
-RUN mkdir -p /tmp/stream-rust-test/store/
+RUN mkdir -p /var/lib/stream-rust-test/
 RUN mkdir /etc/stream-rust-test/
 
 CMD ["/entrypoint.sh"]
