@@ -174,7 +174,7 @@ impl ConnectionConfigBuilder {
                 // connect to Astarte
                 let (client, connection) = builder.connect(mqtt_cfg).await?.build().await;
 
-                Ok((client, SdkConnection::Mqtt(connection)))
+                Ok((client, SdkConnection::Mqtt(Box::new(connection))))
             }
             AstarteConnection::Grpc => {
                 let grpc_cfg = self
@@ -186,7 +186,7 @@ impl ConnectionConfigBuilder {
 
                 let (client, connection) = builder.connect(grpc_cfg).await?.build().await;
 
-                Ok((client, SdkConnection::Grpc(connection)))
+                Ok((client, SdkConnection::Grpc(Box::new(connection))))
             }
         }
     }
@@ -195,9 +195,9 @@ impl ConnectionConfigBuilder {
 /// SDK [`DeviceConnection`]
 pub enum SdkConnection {
     /// Mqtt [DeviceConnection]
-    Mqtt(DeviceConnection<SqliteStore, Mqtt<SqliteStore>>),
+    Mqtt(Box<DeviceConnection<SqliteStore, Mqtt<SqliteStore>>>),
     /// Grpc [DeviceConnection]
-    Grpc(DeviceConnection<SqliteStore, Grpc<SqliteStore>>),
+    Grpc(Box<DeviceConnection<SqliteStore, Grpc<SqliteStore>>>),
 }
 
 /// Config for an MQTT connection to Astarte
