@@ -8,23 +8,23 @@
 # ####################################################
 [astarte]
 connection = "mqtt"
-store_directory = "/tmp/stream-rust-test/store/"
+store_directory = "/var/lib/stream-rust-test/"
 
 [astarte.mqtt]
 realm = "REALM_NAME_HERE"
 device_id = "DEVICE_ID_HERE"
 pairing_url = "PAIRING_URL_HERE"
 credentials_secret = "CREDENTIALS_SECRET_HERE"
-#pairing_token = "PAIRING_TOKEN_HERE"
-astarte_ignore_ssl = false
+# pairing_token = "PAIRING_TOKEN_HERE"
+ignore_ssl_errors = false
 
 # ####################################################
 # Use the following to connect through gRPC to Astarte
 # ####################################################
-#[astarte]
-#connection = "grpc"
-#store_directory = "/tmp/stream-rust-test/store/"
+# [astarte]
+# connection = "grpc"
+# store_directory = "/var/lib/stream-rust-test/"
 #
-#[astarte.grpc]
-#endpoint = "http://[::1]:50051"
-#node_id = "ASTARTE_MSGHUB_NODE_ID_HERE"
+# [astarte.grpc]
+# endpoint = "http://[::1]:50051"
+# node_id = "ASTARTE_MSGHUB_NODE_ID_HERE"

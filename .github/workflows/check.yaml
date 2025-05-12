@@ -35,13 +35,15 @@ jobs:
         toolchain: [stable, beta]
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get -y install libsqlite3-dev libssl-dev
       - name: Install ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
       - name: Install sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.5
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: cargo clippy
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
   doc:
@@ -49,10 +51,12 @@ jobs:
     name: nightly / doc
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get -y install libsqlite3-dev libssl-dev
       - name: Install nightly
         uses: dtolnay/rust-toolchain@nightly
       - name: Install sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.5
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: cargo doc
         run: cargo doc --no-deps --all-features --workspace
         env:
@@ -62,10 +66,12 @@ jobs:
     name: ubuntu / stable / features
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get -y install libsqlite3-dev libssl-dev
       - name: Install stable
         uses: dtolnay/rust-toolchain@stable
       - name: Install sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.5
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: cargo install cargo-hack
         uses: taiki-e/install-action@cargo-hack
       - name: cargo hack
@@ -78,11 +84,13 @@ jobs:
     name: ubuntu / ${{ matrix.msrv }}
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get -y install libsqlite3-dev libssl-dev
       - name: Install ${{ matrix.msrv }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.msrv }}
       - name: Install sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.5
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: cargo +${{ matrix.msrv }} check
         run: cargo check --all-features --workspace
